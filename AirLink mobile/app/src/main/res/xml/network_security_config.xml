@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- ws:// to a numeric LAN IP (192.168.x.x) is cleartext. Domain matching
+         does not apply to raw IPs, so cleartext is permitted at the base config. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

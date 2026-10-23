@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AirLink</string>
+    <string name="accessibility_service_label">AirLink Remote Control</string>
+    <string name="accessibility_service_description">Allows AirLink to simulate touch events and navigation gestures when controlling your phone from your Mac.</string>
+</resources>
