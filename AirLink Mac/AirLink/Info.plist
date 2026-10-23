@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>AirLink</string>
+	<key>CFBundleName</key>
+	<string>AirLink</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.airlink.AirLink</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_FC9F5ED42C8A._tcp</string>
+		<string>_FC9F5ED7._tcp</string>
+		<string>_airlink._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>AirLink needs access to your local network to send and receive files and sync with Android devices.</string>
+</dict>
+</plist>
