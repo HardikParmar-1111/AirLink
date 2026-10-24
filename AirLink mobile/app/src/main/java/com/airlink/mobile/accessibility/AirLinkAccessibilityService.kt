@@ -251,9 +251,16 @@ class AirLinkAccessibilityService : AccessibilityService() {
         @Volatile
         private var instance: AirLinkAccessibilityService? = null
 
+        @Volatile
+        var isTouchInjectionAllowed: Boolean = false
+
         val isServiceRunning: Boolean get() = instance != null
 
         fun injectTap(normX: Float, normY: Float): Boolean {
+            if (!isTouchInjectionAllowed) {
+                Log.d(TAG, "Touch injection blocked: mirroring is inactive (isTouchInjectionAllowed = false)")
+                return false
+            }
             val service = instance
             if (service == null) {
                 Log.w(TAG, "Cannot inject tap: AirLinkAccessibilityService is not running / enabled")
@@ -263,6 +270,10 @@ class AirLinkAccessibilityService : AccessibilityService() {
         }
 
         fun injectTouch(action: String, normX: Float, normY: Float): Boolean {
+            if (!isTouchInjectionAllowed) {
+                Log.d(TAG, "Touch injection blocked: mirroring is inactive (isTouchInjectionAllowed = false)")
+                return false
+            }
             val service = instance
             if (service == null) {
                 Log.w(TAG, "Cannot inject touch: AirLinkAccessibilityService is not running / enabled")
@@ -272,6 +283,10 @@ class AirLinkAccessibilityService : AccessibilityService() {
         }
 
         fun injectSwipe(startX: Float, startY: Float, endX: Float, endY: Float, durationMs: Long = 200L): Boolean {
+            if (!isTouchInjectionAllowed) {
+                Log.d(TAG, "Swipe injection blocked: mirroring is inactive (isTouchInjectionAllowed = false)")
+                return false
+            }
             val service = instance
             if (service == null) {
                 Log.w(TAG, "Cannot inject swipe: AirLinkAccessibilityService is not running / enabled")
@@ -281,6 +296,10 @@ class AirLinkAccessibilityService : AccessibilityService() {
         }
 
         fun injectScroll(deltaX: Float, deltaY: Float, sensitivity: Float = 2.5f): Boolean {
+            if (!isTouchInjectionAllowed) {
+                Log.d(TAG, "Scroll injection blocked: mirroring is inactive (isTouchInjectionAllowed = false)")
+                return false
+            }
             val service = instance
             if (service == null) {
                 Log.w(TAG, "Cannot inject scroll: AirLinkAccessibilityService is not running / enabled")
@@ -290,6 +309,10 @@ class AirLinkAccessibilityService : AccessibilityService() {
         }
 
         fun performGlobalAction(action: String): Boolean {
+            if (!isTouchInjectionAllowed) {
+                Log.d(TAG, "Global action blocked: mirroring is inactive (isTouchInjectionAllowed = false)")
+                return false
+            }
             val service = instance
             if (service == null) {
                 Log.w(TAG, "Cannot trigger global action: AirLinkAccessibilityService is not enabled")

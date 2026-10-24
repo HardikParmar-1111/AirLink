@@ -259,7 +259,8 @@ class ScreenCaptureService : Service() {
         )
 
         _isStreamingFlow.value = true
-        Log.d(TAG, "Screen capture started via WebSocket binary streaming")
+        com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed = true
+        Log.d(TAG, "Screen capture started via WebSocket binary streaming; touch injection enabled")
     }
 
     private fun cleanupDisplayAndReader() {
@@ -287,9 +288,11 @@ class ScreenCaptureService : Service() {
 
         isProcessingFrame.set(false)
         lastFrameTimestamp = 0L
+        com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed = false
     }
 
     private fun stopStreaming() {
+        com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed = false
         val wasStreaming = _isStreamingFlow.value || virtualDisplay != null || mediaProjection != null
         if (wasStreaming && AirLinkWebSocketManager.isConnected) {
             // 1. Send Stop Signal: notify Mac before tearing down capture session
@@ -344,6 +347,7 @@ class ScreenCaptureService : Service() {
         }
 
         fun stop(context: Context) {
+            com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed = false
             val intent = Intent(context, ScreenCaptureService::class.java).apply {
                 action = ACTION_STOP
             }

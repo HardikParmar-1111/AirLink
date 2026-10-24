@@ -735,7 +735,24 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		case "pong":
 			return
 
-		case "stop_mirroring", "stop_mirror":
+		case "mirroring":
+			let action = (json["action"] as? String)?.lowercased() ?? ""
+			if action == "stop" {
+				print("AirLink Router: Received mirroring stop action from phone, closing mirror window and unregistering monitors")
+				fflush(stdout)
+				DispatchQueue.main.async {
+					PhoneMirroringWindowController.shared.closeMirroringWindow(notifyRemote: false)
+					PhoneMirroringModel.shared.resetMirroringState()
+				}
+			} else if action == "start" {
+				print("AirLink Router: Received mirroring start action from phone")
+				fflush(stdout)
+				DispatchQueue.main.async {
+					PhoneMirroringWindowController.shared.showMirroringWindow()
+				}
+			}
+
+		case "stop_mirroring", "stop_mirror", "mirror_stop":
 			print("AirLink Router: Received stop_mirroring from phone, closing mirror window and resetting state")
 			fflush(stdout)
 			DispatchQueue.main.async {

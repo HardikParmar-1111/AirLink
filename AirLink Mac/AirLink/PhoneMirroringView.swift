@@ -147,13 +147,17 @@ final class PhoneMirroringModel: ObservableObject {
 	}
 
 	func stopStreamOnDevice() {
-		let payload: [String: Any] = ["type": "stop_mirror"]
+		let payload: [String: Any] = [
+			"type": "mirroring",
+			"action": "stop"
+		]
 		if let data = try? JSONSerialization.data(withJSONObject: payload),
 		   let json = String(data: data, encoding: .utf8) {
 			AirLinkWebSocketServer.shared.sendMessage(json: json)
-			print("AirLink Mirroring: Sent stop_mirror request")
-			fflush(stdout)
 		}
+		AirLinkWebSocketServer.shared.sendMessage(json: "{\"type\":\"stop_mirror\"}")
+		print("AirLink Mirroring: Sent stop_mirror request")
+		fflush(stdout)
 	}
 
 	/// Receives raw binary video frame from WebSocket and routes through zero-lag pipeline
@@ -186,6 +190,7 @@ final class PhoneMirroringModel: ObservableObject {
 
 	/// Sends continuous trackpad scroll values over WebSocket: {"type": "scroll", "deltaX": 15.0, "deltaY": -40.0}
 	func sendScrollEvent(deltaX: Double, deltaY: Double) {
+		guard isStreaming else { return }
 		let payload: [String: Any] = [
 			"type": "scroll",
 			"deltaX": deltaX,
@@ -204,6 +209,7 @@ final class PhoneMirroringModel: ObservableObject {
 
 	/// Sends mouse-drag swipe gesture over WebSocket as normalized coordinates: {"type": "swipe", "startX": ..., "startY": ..., "endX": ..., "endY": ...}
 	func sendSwipeEvent(startX: Double, startY: Double, endX: Double, endY: Double) {
+		guard isStreaming else { return }
 		let payload: [String: Any] = [
 			"type": "swipe",
 			"startX": startX,
@@ -224,6 +230,7 @@ final class PhoneMirroringModel: ObservableObject {
 
 	/// Sends touch coordinate packets over WebSocket to control the phone, throttling continuous moves to max 60 Hz
 	func sendTouchEvent(action: String, normalizedPoint: CGPoint) {
+		guard isStreaming else { return }
 		let now = ProcessInfo.processInfo.systemUptime
 
 		if action == "move" {
@@ -296,6 +303,7 @@ final class PhoneScrollTrackingView: NSView {
 	}
 
 	private func normalizedPoint(from event: NSEvent) -> CGPoint? {
+		guard PhoneMirroringModel.shared.isStreaming else { return nil }
 		let loc = convert(event.locationInWindow, from: nil)
 		let w = bounds.width
 		let h = bounds.height
@@ -329,6 +337,7 @@ final class PhoneScrollTrackingView: NSView {
 
 	/// Captures native Mac two-finger trackpad scrolling and wheel events
 	override func scrollWheel(with event: NSEvent) {
+		guard PhoneMirroringModel.shared.isStreaming else { return }
 		let dx = Double(event.scrollingDeltaX)
 		let dy = -Double(event.scrollingDeltaY)
 
@@ -472,10 +481,34 @@ final class PhoneMirroringWindowController: NSWindowController, NSWindowDelegate
 		startMirroring()
 	}
 
+	private var eventMonitor: Any?
+
+	func registerEventMonitor() {
+		unregisterEventMonitor()
+		eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
+			guard let self = self, let window = self.window, window.isVisible, event.window == window else {
+				return event
+			}
+			return event
+		}
+		print("AirLink Mirroring: Registered NSEvent local monitor for trackpad/mouse.")
+		fflush(stdout)
+	}
+
+	func unregisterEventMonitor() {
+		if let monitor = eventMonitor {
+			NSEvent.removeMonitor(monitor)
+			eventMonitor = nil
+			print("AirLink Mirroring: Unregistered NSEvent.addLocalMonitorForEvents trackpad listeners.")
+			fflush(stdout)
+		}
+	}
+
 	/// Displays the floating window once binary video frames have arrived
 	func showWindowOnly() {
 		DispatchQueue.main.async { [weak self] in
 			guard let self = self, let window = self.window else { return }
+			self.registerEventMonitor()
 			if !window.isVisible {
 				window.titleVisibility = .hidden
 				window.titlebarAppearsTransparent = true
@@ -494,6 +527,7 @@ final class PhoneMirroringWindowController: NSWindowController, NSWindowDelegate
 	func closeMirroringWindow(notifyRemote: Bool = true) {
 		DispatchQueue.main.async { [weak self] in
 			guard let self = self else { return }
+			self.unregisterEventMonitor()
 			PhoneMirroringModel.shared.stopStreaming(notifyRemote: notifyRemote)
 			if let window = self.window, window.isVisible {
 				window.orderOut(nil)
@@ -506,6 +540,7 @@ final class PhoneMirroringWindowController: NSWindowController, NSWindowDelegate
 	func windowWillClose(_ notification: Notification) {
 		print("AirLink Mirroring: Window closed by user, sending stop_mirroring to phone.")
 		fflush(stdout)
+		unregisterEventMonitor()
 		PhoneMirroringModel.shared.stopStreaming(notifyRemote: true)
 	}
 }

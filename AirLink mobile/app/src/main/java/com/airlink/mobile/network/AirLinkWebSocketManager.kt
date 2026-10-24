@@ -91,11 +91,18 @@ class AirLinkWebSocketManager(
     }
 
     fun sendStopMirroring(): Boolean {
+        com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed = false
         val payload = JSONObject().apply {
-            put("type", "stop_mirror")
+            put("type", "mirroring")
+            put("action", "stop")
         }.toString()
         val sent = send(payload)
-        Log.d(TAG, "Sent stop_mirror signal to Mac: $sent")
+        // Also send legacy stop_mirror for maximum backwards compatibility
+        val legacy = JSONObject().apply {
+            put("type", "stop_mirror")
+        }.toString()
+        send(legacy)
+        Log.d(TAG, "Sent mirroring stop signals to Mac: $sent")
         return sent
     }
 
@@ -245,6 +252,7 @@ class AirLinkWebSocketManager(
     }
 
     private fun disconnectInternal(userInitiated: Boolean) {
+        com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed = false
         socketRef.getAndSet(null)?.let { socket ->
             try {
                 if (userInitiated) {
@@ -468,6 +476,21 @@ class AirLinkWebSocketManager(
                         Log.d(TAG, "Received pong from Mac")
                         return
                     }
+                    "mirroring" -> {
+                        val action = json.optString("action")
+                        if (action.equals("stop", ignoreCase = true)) {
+                            Log.d(TAG, "Received mirroring stop action from Mac")
+                            com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed = false
+                            scope.launch(Dispatchers.Main) {
+                                onStopMirroringRequested?.invoke()
+                            }
+                        } else if (action.equals("start", ignoreCase = true)) {
+                            Log.d(TAG, "Received mirroring start action from Mac")
+                            scope.launch(Dispatchers.Main) {
+                                onStartMirroringRequested?.invoke()
+                            }
+                        }
+                    }
                     "start_mirror", "start_mirroring" -> {
                         Log.d(TAG, "Received start_mirror request from Mac")
                         scope.launch(Dispatchers.Main) {
@@ -476,6 +499,7 @@ class AirLinkWebSocketManager(
                     }
                     "stop_mirror", "stop_mirroring" -> {
                         Log.d(TAG, "Received stop_mirror request from Mac")
+                        com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed = false
                         scope.launch(Dispatchers.Main) {
                             onStopMirroringRequested?.invoke()
                         }
@@ -503,33 +527,49 @@ class AirLinkWebSocketManager(
                         callManager.declineAndSendSMS(message, explicitNumber)
                     }
                     "touch" -> {
+                        if (!com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed) {
+                            Log.d(TAG, "Blocked touch: isTouchInjectionAllowed is false")
+                            return
+                        }
                         val normX = (if (json.has("x")) json.optDouble("x", 0.0) else json.optDouble("normalizedX", 0.0)).toFloat()
                         val normY = (if (json.has("y")) json.optDouble("y", 0.0) else json.optDouble("normalizedY", 0.0)).toFloat()
                         val action = json.optString("action", "tap")
                         Log.d(TAG, "Received touch event from Mac: action=$action x=$normX y=$normY")
-                        AirLinkAccessibilityService.injectTouch(action, normX, normY)
+                        com.airlink.mobile.accessibility.AirLinkAccessibilityService.injectTouch(action, normX, normY)
                     }
                     "tap" -> {
+                        if (!com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed) {
+                            Log.d(TAG, "Blocked tap: isTouchInjectionAllowed is false")
+                            return
+                        }
                         val normX = (if (json.has("x")) json.optDouble("x", 0.0) else json.optDouble("normalizedX", 0.0)).toFloat()
                         val normY = (if (json.has("y")) json.optDouble("y", 0.0) else json.optDouble("normalizedY", 0.0)).toFloat()
                         Log.d(TAG, "Received tap event from Mac: x=$normX y=$normY")
-                        AirLinkAccessibilityService.injectTap(normX, normY)
+                        com.airlink.mobile.accessibility.AirLinkAccessibilityService.injectTap(normX, normY)
                     }
                     "scroll" -> {
+                        if (!com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed) {
+                            Log.d(TAG, "Blocked scroll: isTouchInjectionAllowed is false")
+                            return
+                        }
                         val deltaX = (if (json.has("deltaX")) json.optDouble("deltaX") else json.optDouble("dx", 0.0)).toFloat()
                         val deltaY = (if (json.has("deltaY")) json.optDouble("deltaY") else json.optDouble("dy", 0.0)).toFloat()
                         val sensitivity = json.optDouble("sensitivity", 2.5).toFloat()
                         Log.d(TAG, "Received scroll event from Mac: deltaX=$deltaX, deltaY=$deltaY")
-                        AirLinkAccessibilityService.injectScroll(deltaX, deltaY, sensitivity)
+                        com.airlink.mobile.accessibility.AirLinkAccessibilityService.injectScroll(deltaX, deltaY, sensitivity)
                     }
                     "swipe" -> {
+                        if (!com.airlink.mobile.accessibility.AirLinkAccessibilityService.isTouchInjectionAllowed) {
+                            Log.d(TAG, "Blocked swipe: isTouchInjectionAllowed is false")
+                            return
+                        }
                         val startX = (if (json.has("startX")) json.optDouble("startX") else json.optDouble("x1", 0.5)).toFloat()
                         val startY = (if (json.has("startY")) json.optDouble("startY") else json.optDouble("y1", 0.5)).toFloat()
                         val endX = (if (json.has("endX")) json.optDouble("endX") else json.optDouble("x2", 0.5)).toFloat()
                         val endY = (if (json.has("endY")) json.optDouble("endY") else json.optDouble("y2", 0.5)).toFloat()
                         val duration = json.optLong("duration", json.optLong("durationMs", 200L))
                         Log.d(TAG, "Received swipe event from Mac: ($startX, $startY) -> ($endX, $endY), duration: ${duration}ms")
-                        AirLinkAccessibilityService.injectSwipe(startX, startY, endX, endY, duration)
+                        com.airlink.mobile.accessibility.AirLinkAccessibilityService.injectSwipe(startX, startY, endX, endY, duration)
                     }
                     "key_event", "key", "global_action" -> {
                         val key = when {
