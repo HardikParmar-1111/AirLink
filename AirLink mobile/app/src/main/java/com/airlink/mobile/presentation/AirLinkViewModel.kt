@@ -188,7 +188,7 @@ class AirLinkViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun stopRinging() {
-        PhoneRingerManager.stopRinging()
+        PhoneRingerManager.stopRinging(getApplication())
     }
 
     fun clearClipboardListeners() {

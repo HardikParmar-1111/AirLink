@@ -505,12 +505,18 @@ class AirLinkWebSocketManager(
                         }
                     }
                     "ring_phone", "ring", "find_my_phone", "find_phone" -> {
-                        Log.d(TAG, "Received ring_phone request from Mac — ringing device at max volume")
-                        PhoneRingerManager.startRinging(context)
+                        val action = json.optString("action").lowercase()
+                        if (action == "stop") {
+                            Log.d(TAG, "Received find_phone stop action from Mac — stopping ringtone")
+                            PhoneRingerManager.stopRinging(context)
+                        } else {
+                            Log.d(TAG, "Received find_phone request from Mac — triggering full-screen alert & max volume ringtone")
+                            PhoneRingerManager.startRinging(context)
+                        }
                     }
                     "stop_ring", "stop_ringing", "stop_find_phone" -> {
                         Log.d(TAG, "Received stop_ring request from Mac — stopping ringtone")
-                        PhoneRingerManager.stopRinging()
+                        PhoneRingerManager.stopRinging(context)
                     }
                     "decline_and_text", "decline_call" -> {
                         val message = when {
@@ -675,6 +681,18 @@ class AirLinkWebSocketManager(
 
         fun sendStopMirroring(): Boolean {
             return instance?.sendStopMirroring() ?: false
+        }
+
+        fun sendStopFindPhone(): Boolean {
+            val payload = org.json.JSONObject().apply {
+                put("type", "find_phone")
+                put("action", "stop")
+            }.toString()
+            instance?.send(payload)
+            val legacy = org.json.JSONObject().apply {
+                put("type", "stop_ring")
+            }.toString()
+            return instance?.send(legacy) ?: false
         }
     }
 }
