@@ -79,6 +79,8 @@ class AirLinkWebSocketManager(
     var onPairingAccepted: (() -> Unit)? = null
     var onConnectionLost: (() -> Unit)? = null
 
+    val callManager = com.airlink.mobile.call.AirLinkCallManager(context, this)
+
     fun sendStreamInfo() {
         val payload = JSONObject().apply {
             put("type", "mirror_stream")
@@ -90,10 +92,10 @@ class AirLinkWebSocketManager(
 
     fun sendStopMirroring(): Boolean {
         val payload = JSONObject().apply {
-            put("type", "stop_mirroring")
+            put("type", "stop_mirror")
         }.toString()
         val sent = send(payload)
-        Log.d(TAG, "Sent stop_mirroring signal to Mac: $sent")
+        Log.d(TAG, "Sent stop_mirror signal to Mac: $sent")
         return sent
     }
 
@@ -102,17 +104,12 @@ class AirLinkWebSocketManager(
         if (_connectionState.value !is ConnectionState.Connected) {
             return false
         }
-        // Drop stale frame if WebSocket buffer is currently congested
-        if (socket.queueSize() > 64 * 1024) {
+        // Drop stale frame if WebSocket buffer is currently congested (> 128KB)
+        if (socket.queueSize() > 128 * 1024) {
             return false
         }
         return try {
-            val payload = if (crypto.isKeyEstablished) {
-                crypto.encryptBinary(bytes)
-            } else {
-                bytes
-            }
-            socket.send(payload.toByteString())
+            socket.send(bytes.toByteString())
         } catch (e: IOException) {
             Log.w(TAG, "IOException during binary send: ${e.message}")
             handleDisconnectionOnFailure(e)
@@ -173,6 +170,9 @@ class AirLinkWebSocketManager(
      * Catches IOExceptions and cleans up safely without crashing.
      */
     fun send(text: String): Boolean {
+        if (text.contains("\"incoming_call\"")) {
+            Log.d("AirLink", "Sending incoming_call JSON to Mac")
+        }
         val socket = socketRef.get()
         if (socket == null || _connectionState.value !is ConnectionState.Connected) {
             Log.w(TAG, "Send skipped: socket not connected")
@@ -183,6 +183,9 @@ class AirLinkWebSocketManager(
                 crypto.encryptText(text)
             } else {
                 text
+            }
+            if (text.contains("\"incoming_call\"")) {
+                Log.d("AirLink", "WebSocket pushing incoming_call frame (encrypted=${crypto.isKeyEstablished})")
             }
             val sent = socket.send(payload)
             if (!sent) {
@@ -434,6 +437,11 @@ class AirLinkWebSocketManager(
                         Log.d(TAG, "Pairing accepted by Mac, establishing AES-256-GCM symmetric key")
                         crypto.establishKeyFromHandshake(json, getOrCreateDeviceId())
                         _connectionState.value = ConnectionState.Connected
+                        try {
+                            callManager.startListening()
+                        } catch (t: Throwable) {
+                            Log.w(TAG, "Could not start call listening: ${t.message}")
+                        }
                         scope.launch(Dispatchers.Main) {
                             onPairingAccepted?.invoke()
                         }
@@ -448,14 +456,26 @@ class AirLinkWebSocketManager(
                         }
                         return
                     }
-                    "start_mirroring" -> {
-                        Log.d(TAG, "Received start_mirroring request from Mac")
+                    "ping" -> {
+                        val pong = JSONObject().apply {
+                            put("type", "pong")
+                        }.toString()
+                        val sent = webSocket.send(pong)
+                        Log.d(TAG, "Received ping from Mac, responded with pong ($sent)")
+                        return
+                    }
+                    "pong" -> {
+                        Log.d(TAG, "Received pong from Mac")
+                        return
+                    }
+                    "start_mirror", "start_mirroring" -> {
+                        Log.d(TAG, "Received start_mirror request from Mac")
                         scope.launch(Dispatchers.Main) {
                             onStartMirroringRequested?.invoke()
                         }
                     }
-                    "stop_mirroring" -> {
-                        Log.d(TAG, "Received stop_mirroring request from Mac")
+                    "stop_mirror", "stop_mirroring" -> {
+                        Log.d(TAG, "Received stop_mirror request from Mac")
                         scope.launch(Dispatchers.Main) {
                             onStopMirroringRequested?.invoke()
                         }
@@ -467,6 +487,15 @@ class AirLinkWebSocketManager(
                     "stop_ring", "stop_ringing", "stop_find_phone" -> {
                         Log.d(TAG, "Received stop_ring request from Mac — stopping ringtone")
                         PhoneRingerManager.stopRinging()
+                    }
+                    "decline_and_text", "decline_call" -> {
+                        val message = when {
+                            json.has("message") -> json.getString("message")
+                            json.has("text") -> json.getString("text")
+                            else -> "I will call back later, please text me."
+                        }
+                        Log.d(TAG, "Received decline_and_text command from Mac: '$message'")
+                        callManager.declineAndSendSMS(message)
                     }
                     "touch" -> {
                         val normX = (if (json.has("x")) json.optDouble("x", 0.0) else json.optDouble("normalizedX", 0.0)).toFloat()

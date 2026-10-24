@@ -22,9 +22,15 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 	private var listener: NWListener?
 	private var bonjourService: NetService?
 	private var connections: [ObjectIdentifier: NWConnection] = [:]
+	private var connectionLastSeen: [ObjectIdentifier: Date] = [:]
+	private var heartbeatTimer: DispatchSourceTimer?
 	/// Most recently ready Android WebSocket. Dropped files go here directly.
 	private var activeConnection: NWConnection?
-	public var hasActiveConnection: Bool { activeConnection != nil }
+	public var hasActiveConnection: Bool {
+		guard let activeConnection else { return false }
+		if case .ready = activeConnection.state { return true }
+		return false
+	}
 	public private(set) var connectedDeviceName: String? = nil
 	public private(set) var connectedDeviceIP: String? = nil
 	private let queue = DispatchQueue(label: "com.airlink.websocket", qos: .userInteractive)
@@ -82,8 +88,10 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 			self?.bonjourService?.stop()
 			self?.bonjourService = nil
 		}
+		stopHeartbeat()
 		connections.values.forEach { $0.cancel() }
 		connections.removeAll()
+		connectionLastSeen.removeAll()
 		activeConnection = nil
 		connectedDeviceName = nil
 		connectedDeviceIP = nil
@@ -97,6 +105,7 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 			AirLinkModel.shared.isScanning = true
 			AppDelegate.shared?.updateConnectedDevice(name: nil)
 			PhoneMirroringWindowController.shared.closeMirroringWindow(notifyRemote: false)
+			PhoneMirroringModel.shared.resetMirroringState()
 		}
 		listener?.cancel()
 		listener = nil
@@ -122,12 +131,14 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 	private func handleNewConnection(_ connection: NWConnection) {
 		let id = ObjectIdentifier(connection)
 		connections[id] = connection
+		connectionLastSeen[id] = Date()
 
 		connection.stateUpdateHandler = { [weak self, weak connection] state in
 			guard let self, let connection else { return }
 			switch state {
 			case .ready:
 				self.activeConnection = connection
+				self.connectionLastSeen[id] = Date()
 				let clientIP = self.extractIP(from: connection)
 				if let clientIP, !clientIP.isEmpty {
 					self.connectedDeviceIP = clientIP
@@ -140,6 +151,7 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 					print("AirLink: Client Connected")
 				}
 				fflush(stdout)
+				self.startHeartbeatIfNeeded()
 			case .failed(let error):
 				print("AirLink WebSocket connection failed: \(error)")
 				self.handleDisconnect(for: connection, reason: "Connection failed: \(error.localizedDescription)")
@@ -147,6 +159,7 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 				self.handleDisconnect(for: connection, reason: "Connection cancelled")
 			case .waiting(let error):
 				print("AirLink WebSocket connection waiting: \(error)")
+				self.handleDisconnect(for: connection, reason: "Connection waiting: \(error.localizedDescription)")
 			default:
 				break
 			}
@@ -158,6 +171,7 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 
 	private func handleDisconnect(for connection: NWConnection, reason: String) {
 		let id = ObjectIdentifier(connection)
+		connectionLastSeen.removeValue(forKey: id)
 		if connections.removeValue(forKey: id) != nil {
 			print("AirLink: Client Disconnected (\(reason))")
 			fflush(stdout)
@@ -170,6 +184,7 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 			}
 		}
 		if connections.isEmpty || activeConnection == nil {
+			stopHeartbeat()
 			handleAllClientsDisconnected()
 		}
 	}
@@ -180,8 +195,9 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		AirLinkSecurityManager.shared.clearActiveKey()
 
 		DispatchQueue.main.async {
-			// 1. Close mirroring window safely without crashing
+			// 1. Close mirroring window safely without crashing and reset mirroring state
 			PhoneMirroringWindowController.shared.closeMirroringWindow(notifyRemote: false)
+			PhoneMirroringModel.shared.resetMirroringState()
 
 			// 2. Reset all UI state variables to "Disconnected"
 			AirLinkModel.shared.connectedDeviceName = nil
@@ -201,6 +217,51 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		}
 	}
 
+	// MARK: - WebSocket Heartbeat (Ping/Pong)
+	private func startHeartbeatIfNeeded() {
+		queue.async { [weak self] in
+			guard let self = self, self.heartbeatTimer == nil else { return }
+			let timer = DispatchSource.makeTimerSource(queue: self.queue)
+			timer.schedule(deadline: .now() + 5.0, repeating: 5.0)
+			timer.setEventHandler { [weak self] in
+				self?.sendHeartbeatPing()
+			}
+			timer.resume()
+			self.heartbeatTimer = timer
+			print("AirLink Heartbeat: Started 5s keepalive timer")
+			fflush(stdout)
+		}
+	}
+
+	private func stopHeartbeat() {
+		heartbeatTimer?.cancel()
+		heartbeatTimer = nil
+	}
+
+	private func sendHeartbeatPing() {
+		let now = Date()
+		let pingJSON = "{\"type\":\"ping\"}"
+		guard let pingData = pingJSON.data(using: .utf8) else { return }
+		let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
+		let context = NWConnection.ContentContext(identifier: "pingContext", metadata: [metadata])
+
+		for (id, connection) in connections {
+			if let lastSeen = connectionLastSeen[id], now.timeIntervalSince(lastSeen) > 10.0 {
+				print("AirLink Heartbeat: Timeout (10s with no pong/activity) on connection, force-closing ghost connection")
+				fflush(stdout)
+				handleDisconnect(for: connection, reason: "Heartbeat timeout")
+				continue
+			}
+
+			connection.send(content: pingData, contentContext: context, isComplete: true, completion: .contentProcessed { [weak self, weak connection] error in
+				if let error = error, let connection = connection {
+					print("AirLink Heartbeat: Ping send failed: \(error)")
+					self?.handleDisconnect(for: connection, reason: "Ping send error: \(error.localizedDescription)")
+				}
+			})
+		}
+	}
+
 	// MARK: - Receiving Data (Android -> Mac)
 	private func receive(on connection: NWConnection) {
 		connection.receiveMessage { [weak self, weak connection] data, context, _, error in
@@ -217,6 +278,9 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 				self.handleDisconnect(for: connection, reason: "Client closed WebSocket")
 				return
 			}
+
+			let id = ObjectIdentifier(connection)
+			self.connectionLastSeen[id] = Date()
 
 			if let data, !data.isEmpty {
 				self.processIncomingData(data, context: context, from: connection)
@@ -581,6 +645,53 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 				print("AirLink Router: invalid file payload: \(json)")
 			}
 
+		case "incoming_call", "call_incoming", "call":
+			// Strict logging requirement to verify network delivery
+			print("AirLink: Received incoming_call JSON: \(trimmed)")
+			fflush(stdout)
+
+			let rawNumber = (json["number"] as? String)
+				?? (json["phoneNumber"] as? String)
+				?? (json["phone_number"] as? String)
+				?? (json["caller"] as? String)
+				?? "Unknown Caller"
+			let callerName = (json["name"] as? String) ?? (json["callerName"] as? String) ?? rawNumber
+			let deviceName = self.connectedDeviceName ?? "Android Phone"
+
+			// Strict requirement: all UI and notification triggers must be on main thread
+			DispatchQueue.main.async {
+				print("AirLink: Posting incoming call notification on main thread for '\(callerName)' (\(rawNumber))")
+				fflush(stdout)
+
+				let content = UNMutableNotificationContent()
+				content.title = "Incoming Call"
+				content.subtitle = deviceName
+				content.body = callerName != rawNumber ? "\(callerName) (\(rawNumber))" : "Calling: \(rawNumber)"
+				content.sound = .default
+				content.categoryIdentifier = "INCOMING_CALL"
+				content.userInfo = ["phoneNumber": rawNumber]
+
+				let request = UNNotificationRequest(
+					identifier: "incoming_call_\(UUID().uuidString)",
+					content: content,
+					trigger: nil
+				)
+				UNUserNotificationCenter.current().add(request) { error in
+					if let error {
+						print("AirLink: Failed to post call notification: \(error)")
+					} else {
+						print("AirLink: Successfully scheduled incoming call notification!")
+					}
+					fflush(stdout)
+				}
+
+				AirLinkNotchDropManager.shared.triggerReceivedFeedback(
+					title: "Incoming Call",
+					subtitle: callerName
+				)
+				AppDelegate.shared?.flashMenuBarIcon()
+			}
+
 		case "notification", "android_notification", "remote_notification":
 			handleIncomingNotification(from: json)
 
@@ -612,11 +723,24 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 				}
 			}
 
+		case "ping":
+			let pongJSON = "{\"type\":\"pong\"}"
+			if let pongData = pongJSON.data(using: .utf8) {
+				let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
+				let context = NWConnection.ContentContext(identifier: "pongContext", metadata: [metadata])
+				connection.send(content: pongData, contentContext: context, isComplete: true, completion: .contentProcessed { _ in })
+			}
+			return
+
+		case "pong":
+			return
+
 		case "stop_mirroring", "stop_mirror":
 			print("AirLink Router: Received stop_mirroring from phone, closing mirror window and resetting state")
 			fflush(stdout)
 			DispatchQueue.main.async {
 				PhoneMirroringWindowController.shared.closeMirroringWindow(notifyRemote: false)
+				PhoneMirroringModel.shared.resetMirroringState()
 			}
 
 		case "start_mirroring", "start_mirror":
@@ -1048,11 +1172,18 @@ final class AirLinkSecurityManager {
 		}
 		keyLock.unlock()
 
+		var payload = combinedData
+		// Android AirLinkCrypto prepends 4-byte MAGIC "AENC" (0x41, 0x45, 0x4E, 0x43)
+		if payload.count >= 4 &&
+		   payload[0] == 0x41 && payload[1] == 0x45 && payload[2] == 0x4E && payload[3] == 0x43 {
+			payload = payload.subdata(in: 4..<payload.count)
+		}
+
 		// A valid AES-GCM sealed box must have at least 28 bytes (12 bytes nonce + 16 bytes tag)
-		guard combinedData.count >= 28 else { return nil }
+		guard payload.count >= 28 else { return nil }
 
 		do {
-			let sealedBox = try AES.GCM.SealedBox(combined: combinedData)
+			let sealedBox = try AES.GCM.SealedBox(combined: payload)
 			let decrypted = try AES.GCM.open(sealedBox, using: key)
 			return decrypted
 		} catch {

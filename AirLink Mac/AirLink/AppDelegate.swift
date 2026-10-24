@@ -22,7 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 		setupStatusItem()
 
 		let nc = UNUserNotificationCenter.current()
-		nc.requestAuthorization(options: [.alert, .sound]) { granted, err in
+		nc.requestAuthorization(options: [.alert, .sound, .badge]) { granted, err in
 			if !granted {
 				DispatchQueue.main.async {
 					self.showNotificationsDeniedAlert()
@@ -35,7 +35,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 			UNNotificationAction(identifier: "DECLINE", title: NSLocalizedString("Decline", comment: ""))
 		], intentIdentifiers: [])
 		let errorsCategory = UNNotificationCategory(identifier: "ERRORS", actions: [], intentIdentifiers: [])
-		nc.setNotificationCategories([incomingTransfersCategory, errorsCategory])
+
+		let declineAndTextAction = UNNotificationAction(
+			identifier: "DECLINE_AND_TEXT",
+			title: "Decline & Text",
+			options: [.destructive]
+		)
+		let incomingCallCategory = UNNotificationCategory(
+			identifier: "INCOMING_CALL",
+			actions: [declineAndTextAction],
+			intentIdentifiers: [],
+			options: [.customDismissAction]
+		)
+
+		nc.setNotificationCategories([incomingTransfersCategory, errorsCategory, incomingCallCategory])
 		AirLinkConnectionManager.shared.mainAppDelegate = self
 		
 		DispatchQueue.global(qos: .userInitiated).async {
@@ -218,6 +231,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 				activeIncomingTransfers.removeValue(forKey: transferID)
 			}
 		}
+
+		if response.actionIdentifier == "DECLINE_AND_TEXT" {
+			let quickReplyText = "I will call back later, please text me."
+			print("AirLink: User pressed Decline & Text. Dispatching WebSocket command to Android...")
+			let payload: [String: Any] = [
+				"type": "decline_and_text",
+				"message": quickReplyText
+			]
+			if let data = try? JSONSerialization.data(withJSONObject: payload),
+			   let jsonString = String(data: data, encoding: .utf8) {
+				AirLinkWebSocketServer.shared.sendMessage(json: jsonString)
+			}
+		}
+
 		completionHandler()
 	}
 

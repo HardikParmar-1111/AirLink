@@ -98,6 +98,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val callAndSmsPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val phoneStateGranted = permissions[android.Manifest.permission.READ_PHONE_STATE] ?: false
+        val smsGranted = permissions[android.Manifest.permission.SEND_SMS] ?: false
+        Log.d(TAG, "Call & SMS permissions granted: phoneState=$phoneStateGranted, sms=$smsGranted")
+    }
+
     /**
      * Must be an Activity field. ClipboardManager on several OEMs stores
      * OnPrimaryClipChangedListener with a WeakReference; a local/lambda
@@ -142,6 +150,14 @@ class MainActivity : ComponentActivity() {
         }
 
         clipboard = getSystemService(ClipboardManager::class.java)
+        callAndSmsPermissionsLauncher.launch(
+            arrayOf(
+                android.Manifest.permission.READ_PHONE_STATE,
+                android.Manifest.permission.READ_CALL_LOG,
+                android.Manifest.permission.ANSWER_PHONE_CALLS,
+                android.Manifest.permission.SEND_SMS
+            )
+        )
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -216,82 +232,26 @@ fun AirLinkScreen(
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val connectedMacName by viewModel.connectedMacName.collectAsStateWithLifecycle()
     val discoveredDevices by viewModel.discoveredDevices.collectAsStateWithLifecycle()
-    val statusDetail by viewModel.statusDetail.collectAsStateWithLifecycle()
     val isStreaming by viewModel.isStreaming.collectAsStateWithLifecycle()
     val batteryState by viewModel.batteryState.collectAsStateWithLifecycle()
-    val isRinging by viewModel.isRinging.collectAsStateWithLifecycle()
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = Paper
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "AirLink",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = Ink
+    when (connectionState) {
+        is ConnectionState.Connected -> {
+            com.airlink.mobile.ui.ActiveConnectionScreen(
+                macName = connectedMacName ?: "MacBook",
+                batteryLevel = batteryState?.first ?: 100,
+                isCharging = batteryState?.second ?: false,
+                isStreaming = isStreaming,
+                onStartMirroring = onRequestMirroring,
+                onStopMirroring = viewModel::stopScreenCapture,
+                onDisconnect = viewModel::onDisconnectClicked
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Pair with your Mac for instant file and clipboard sharing.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = InkMuted,
-                textAlign = TextAlign.Center
+        }
+        else -> {
+            com.airlink.mobile.ui.ScanningScreen(
+                discoveredDevices = discoveredDevices,
+                onPairClicked = viewModel::connectToDevice
             )
-
-            Spacer(modifier = Modifier.height(36.dp))
-
-            when (connectionState) {
-                is ConnectionState.Connected -> {
-                    ConnectedCard(
-                        macName = connectedMacName ?: "Mac",
-                        isStreaming = isStreaming,
-                        isRinging = isRinging,
-                        batteryState = batteryState,
-                        onRequestMirroring = onRequestMirroring,
-                        onStopMirroring = viewModel::stopScreenCapture,
-                        onStopRinging = viewModel::stopRinging,
-                        onDisconnect = viewModel::onDisconnectClicked
-                    )
-                }
-                is ConnectionState.Connecting -> {
-                    ConnectingCard(
-                        macName = connectedMacName ?: "Mac",
-                        onCancel = viewModel::onDisconnectClicked
-                    )
-                }
-                is ConnectionState.Disconnected -> {
-                    if (discoveredDevices.isEmpty()) {
-                        RestingCard(
-                            title = "Looking for your Mac...",
-                            subtitle = "Make sure AirLink is running on your Mac and both devices are on the same Wi-Fi."
-                        )
-                    } else {
-                        DiscoveredDevicesList(
-                            devices = discoveredDevices,
-                            onDeviceSelected = viewModel::connectToDevice
-                        )
-                    }
-                }
-            }
-
-            if (!statusDetail.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = statusDetail.orEmpty(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center
-                )
-            }
         }
     }
 }

@@ -77,6 +77,12 @@ class ScreenCaptureService : Service() {
                     return START_NOT_STICKY
                 }
 
+                // If already streaming or previous session display/reader is retained, cleanly release first
+                if (virtualDisplay != null || mediaProjection != null || imageReader != null) {
+                    Log.d(TAG, "Cleaning up previous display and reader before starting fresh projection")
+                    cleanupDisplayAndReader()
+                }
+
                 startForegroundServiceWithNotification()
                 startProjection(resultCode, resultData)
             }
@@ -256,9 +262,36 @@ class ScreenCaptureService : Service() {
         Log.d(TAG, "Screen capture started via WebSocket binary streaming")
     }
 
+    private fun cleanupDisplayAndReader() {
+        try {
+            virtualDisplay?.release()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error releasing virtual display: ${e.message}")
+        }
+        virtualDisplay = null
+
+        try {
+            imageReader?.setOnImageAvailableListener(null, null)
+            imageReader?.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error closing image reader: ${e.message}")
+        }
+        imageReader = null
+
+        try {
+            mediaProjection?.stop()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error stopping media projection: ${e.message}")
+        }
+        mediaProjection = null
+
+        isProcessingFrame.set(false)
+        lastFrameTimestamp = 0L
+    }
+
     private fun stopStreaming() {
         val wasStreaming = _isStreamingFlow.value || virtualDisplay != null || mediaProjection != null
-        if (wasStreaming) {
+        if (wasStreaming && AirLinkWebSocketManager.isConnected) {
             // 1. Send Stop Signal: notify Mac before tearing down capture session
             AirLinkWebSocketManager.sendStopMirroring()
         }
@@ -272,20 +305,7 @@ class ScreenCaptureService : Service() {
             stopForeground(true)
         }
 
-        try {
-            virtualDisplay?.release()
-        } catch (_: Exception) {}
-        virtualDisplay = null
-
-        try {
-            imageReader?.close()
-        } catch (_: Exception) {}
-        imageReader = null
-
-        try {
-            mediaProjection?.stop()
-        } catch (_: Exception) {}
-        mediaProjection = null
+        cleanupDisplayAndReader()
     }
 
     override fun onDestroy() {

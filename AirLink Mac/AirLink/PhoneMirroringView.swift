@@ -62,6 +62,9 @@ final class MirroringFrameQueue {
 			DispatchQueue.main.async {
 				onImageDecoded(image)
 			}
+		} else {
+			print("AirLink Mirroring: Warning: Failed to decode binary frame (\(dataToDecode.count) bytes)")
+			fflush(stdout)
 		}
 
 		// Continue loop if a newer frame arrived while decoding/drawing
@@ -107,11 +110,13 @@ final class PhoneMirroringModel: ObservableObject {
 
 	/// Connects to the phone mirror feed by requesting streaming directly over the existing WebSocket connection
 	func connect() {
+		resetMirroringState()
 		statusMessage = "Connecting to phone mirror feed..."
 		requestStreamFromDevice()
 	}
 
 	func startStreaming() {
+		resetMirroringState()
 		statusMessage = "Streaming via WebSocket..."
 		requestStreamFromDevice()
 	}
@@ -119,7 +124,7 @@ final class PhoneMirroringModel: ObservableObject {
 	func resetMirroringState() {
 		isStreaming = false
 		currentFrame = nil
-		statusMessage = "Mirroring stopped"
+		statusMessage = "Connecting to phone mirror feed..."
 		frameCount = 0
 		MirroringFrameQueue.shared.reset()
 	}
@@ -132,21 +137,21 @@ final class PhoneMirroringModel: ObservableObject {
 	}
 
 	func requestStreamFromDevice() {
-		let payload: [String: Any] = ["type": "start_mirroring"]
+		let payload: [String: Any] = ["type": "start_mirror"]
 		if let data = try? JSONSerialization.data(withJSONObject: payload),
 		   let json = String(data: data, encoding: .utf8) {
 			AirLinkWebSocketServer.shared.sendMessage(json: json)
-			print("AirLink Mirroring: Sent start_mirroring request")
+			print("AirLink Mirroring: Sent start_mirror request")
 			fflush(stdout)
 		}
 	}
 
 	func stopStreamOnDevice() {
-		let payload: [String: Any] = ["type": "stop_mirroring"]
+		let payload: [String: Any] = ["type": "stop_mirror"]
 		if let data = try? JSONSerialization.data(withJSONObject: payload),
 		   let json = String(data: data, encoding: .utf8) {
 			AirLinkWebSocketServer.shared.sendMessage(json: json)
-			print("AirLink Mirroring: Sent stop_mirroring request")
+			print("AirLink Mirroring: Sent stop_mirror request")
 			fflush(stdout)
 		}
 	}
@@ -168,10 +173,15 @@ final class PhoneMirroringModel: ObservableObject {
 
 	/// Coalesces frame updates: updates view with newest frame on main thread
 	func pushNewFrame(_ image: NSImage) {
+		let wasFirstFrame = (self.currentFrame == nil)
 		self.currentFrame = image
 		self.isStreaming = true
 		self.frameCount += 1
 		self.statusMessage = "Live Stream Active"
+
+		if wasFirstFrame {
+			PhoneMirroringWindowController.shared.showWindowOnly()
+		}
 	}
 
 	/// Sends continuous trackpad scroll values over WebSocket: {"type": "scroll", "deltaX": 15.0, "deltaY": -40.0}
@@ -269,19 +279,15 @@ final class PhoneMirroringModel: ObservableObject {
 	}
 }
 
-// MARK: - Native Trackpad Scroll & Gesture Capture (AppKit)
+// MARK: - Native Mouse Tracking & Trackpad Scroll View (AppKit)
 final class PhoneScrollTrackingView: NSView {
+	var onTouch: ((String, CGPoint) -> Void)?
 	var onScroll: ((Double, Double) -> Void)?
-	var onTap: ((CGPoint) -> Void)?
-	var onSwipe: ((CGPoint, CGPoint) -> Void)?
 
-	// Lightweight throttle for trackpad events: max 60 events per second
-	private var lastScrollTimestamp: TimeInterval = 0
-	private let minScrollInterval: TimeInterval = 1.0 / 60.0
+	private var lastMoveTimestamp: TimeInterval = 0
+	private let minMoveInterval: TimeInterval = 1.0 / 60.0
 	private var accumulatedDeltaX: Double = 0.0
 	private var accumulatedDeltaY: Double = 0.0
-
-	private var dragStartPoint: NSPoint?
 
 	override var isFlipped: Bool { true }
 
@@ -289,88 +295,77 @@ final class PhoneScrollTrackingView: NSView {
 		return true
 	}
 
+	private func normalizedPoint(from event: NSEvent) -> CGPoint? {
+		let loc = convert(event.locationInWindow, from: nil)
+		let w = bounds.width
+		let h = bounds.height
+		guard w > 0, h > 0 else { return nil }
+
+		let normX = max(0.0, min(1.0, loc.x / w))
+		let normY = max(0.0, min(1.0, loc.y / h))
+		let roundedX = (normX * 1000).rounded() / 1000
+		let roundedY = (normY * 1000).rounded() / 1000
+		return CGPoint(x: roundedX, y: roundedY)
+	}
+
+	override func mouseDown(with event: NSEvent) {
+		guard let pt = normalizedPoint(from: event) else { return }
+		onTouch?("down", pt)
+	}
+
+	override func mouseDragged(with event: NSEvent) {
+		guard let pt = normalizedPoint(from: event) else { return }
+		let now = ProcessInfo.processInfo.systemUptime
+		if now - lastMoveTimestamp >= minMoveInterval {
+			lastMoveTimestamp = now
+			onTouch?("move", pt)
+		}
+	}
+
+	override func mouseUp(with event: NSEvent) {
+		guard let pt = normalizedPoint(from: event) else { return }
+		onTouch?("up", pt)
+	}
+
 	/// Captures native Mac two-finger trackpad scrolling and wheel events
 	override func scrollWheel(with event: NSEvent) {
-		// 1. Invert Y-Axis so it matches Android's coordinate system
 		let dx = Double(event.scrollingDeltaX)
 		let dy = -Double(event.scrollingDeltaY)
 
-		// 2. Accumulate Deltas to exceed Android's touch slop threshold
 		accumulatedDeltaX += dx
 		accumulatedDeltaY += dy
 
-		// 3. Threshold Trigger: Only send when absolute value of either accumulator exceeds 15.0 pixels
 		let threshold: Double = 15.0
 		if abs(accumulatedDeltaX) >= threshold || abs(accumulatedDeltaY) >= threshold {
 			let toSendX = (accumulatedDeltaX * 10).rounded() / 10
 			let toSendY = (accumulatedDeltaY * 10).rounded() / 10
 
-			// Once sent, reset the accumulators to 0
 			accumulatedDeltaX = 0.0
 			accumulatedDeltaY = 0.0
 
 			onScroll?(toSendX, toSendY)
 		} else if event.phase == .ended || event.phase == .cancelled {
-			// Reset sub-threshold residual deltas when user lifts fingers
 			accumulatedDeltaX = 0.0
 			accumulatedDeltaY = 0.0
 		}
 	}
-
-	override func mouseDown(with event: NSEvent) {
-		let loc = convert(event.locationInWindow, from: nil)
-		dragStartPoint = loc
-	}
-
-	override func mouseUp(with event: NSEvent) {
-		guard let start = dragStartPoint else { return }
-		dragStartPoint = nil
-		let end = convert(event.locationInWindow, from: nil)
-
-		let width = bounds.width
-		let height = bounds.height
-		guard width > 0, height > 0 else { return }
-
-		let normStartX = max(0.0, min(1.0, start.x / width))
-		let normStartY = max(0.0, min(1.0, start.y / height))
-		let normEndX = max(0.0, min(1.0, end.x / width))
-		let normEndY = max(0.0, min(1.0, end.y / height))
-
-		let distance = hypot(end.x - start.x, end.y - start.y)
-		if distance < 5.0 {
-			// Click / Tap
-			let tapX = (normStartX * 100).rounded() / 100
-			let tapY = (normStartY * 100).rounded() / 100
-			onTap?(CGPoint(x: tapX, y: tapY))
-		} else {
-			// Drag / Swipe
-			let sX = (normStartX * 100).rounded() / 100
-			let sY = (normStartY * 100).rounded() / 100
-			let eX = (normEndX * 100).rounded() / 100
-			let eY = (normEndY * 100).rounded() / 100
-			onSwipe?(CGPoint(x: sX, y: sY), CGPoint(x: eX, y: eY))
-		}
-	}
 }
 
-// MARK: - SwiftUI Representable for Trackpad Scrolling & Gestures
+// MARK: - SwiftUI Representable for Mouse Tracking & Trackpad Scrolling
 struct PhoneScrollTrackingRepresentable: NSViewRepresentable {
+	let onTouch: (String, CGPoint) -> Void
 	let onScroll: (Double, Double) -> Void
-	let onTap: (CGPoint) -> Void
-	let onSwipe: (CGPoint, CGPoint) -> Void
 
 	func makeNSView(context: Context) -> PhoneScrollTrackingView {
 		let view = PhoneScrollTrackingView()
+		view.onTouch = onTouch
 		view.onScroll = onScroll
-		view.onTap = onTap
-		view.onSwipe = onSwipe
 		return view
 	}
 
 	func updateNSView(_ nsView: PhoneScrollTrackingView, context: Context) {
+		nsView.onTouch = onTouch
 		nsView.onScroll = onScroll
-		nsView.onTap = onTap
-		nsView.onSwipe = onSwipe
 	}
 }
 
@@ -389,21 +384,13 @@ struct PhoneMirroringRootView: View {
 						.resizable()
 						.aspectRatio(contentMode: .fit)
 						.overlay(
-							// Invisible trackpad scrolling and gesture capture view positioned over video feed
+							// Mouse click/drag tracking and trackpad scrolling overlay
 							PhoneScrollTrackingRepresentable(
+								onTouch: { action, point in
+									model.sendTouchEvent(action: action, normalizedPoint: point)
+								},
 								onScroll: { deltaX, deltaY in
 									model.sendScrollEvent(deltaX: deltaX, deltaY: deltaY)
-								},
-								onTap: { point in
-									model.sendTouchEvent(action: "tap", normalizedPoint: point)
-								},
-								onSwipe: { startPoint, endPoint in
-									model.sendSwipeEvent(
-										startX: startPoint.x,
-										startY: startPoint.y,
-										endX: endPoint.x,
-										endY: endPoint.y
-									)
 								}
 							)
 						)
@@ -462,30 +449,45 @@ final class PhoneMirroringWindowController: NSWindowController, NSWindowDelegate
 		fatalError("init(coder:) has not been implemented")
 	}
 
-	/// Safely launches the mirroring window with native iPhone Mirroring appearance
-	func showMirroringWindow() {
+	/// Starts the mirroring flow: sends start_mirroring to phone to trigger permission prompt.
+	/// The mirroring window will appear automatically as soon as the first video frame arrives.
+	func startMirroring() {
 		let isConnected = AirLinkWebSocketServer.shared.hasActiveConnection ||
 			AirLinkWebSocketServer.shared.connectedDeviceName != nil ||
 			AirLinkModel.shared.connectedDeviceName != nil
 
 		guard isConnected else {
-			print("AirLink Mirroring: Cannot open mirroring window - no connected phone.")
+			print("AirLink Mirroring: Cannot start mirroring - no connected phone.")
 			fflush(stdout)
 			return
 		}
 
-		guard let window = window else { return }
-		window.titleVisibility = .hidden
-		window.titlebarAppearsTransparent = true
-		window.styleMask.insert(.fullSizeContentView)
-		window.isMovableByWindowBackground = true
-
-		if !window.isVisible {
-			window.center()
-		}
-		window.makeKeyAndOrderFront(nil)
-		NSApp.activate(ignoringOtherApps: true)
+		print("AirLink Mirroring: Dispatched start_mirroring to phone. Window will appear when video stream arrives.")
+		fflush(stdout)
 		PhoneMirroringModel.shared.connect()
+	}
+
+	/// Alias for backwards compatibility
+	func showMirroringWindow() {
+		startMirroring()
+	}
+
+	/// Displays the floating window once binary video frames have arrived
+	func showWindowOnly() {
+		DispatchQueue.main.async { [weak self] in
+			guard let self = self, let window = self.window else { return }
+			if !window.isVisible {
+				window.titleVisibility = .hidden
+				window.titlebarAppearsTransparent = true
+				window.styleMask.insert(.fullSizeContentView)
+				window.isMovableByWindowBackground = true
+				window.center()
+				window.makeKeyAndOrderFront(nil)
+				NSApp.activate(ignoringOtherApps: true)
+				print("AirLink Mirroring: Video stream arrived -> displaying mirroring window.")
+				fflush(stdout)
+			}
+		}
 	}
 
 	/// Automatically closes the mirroring window and resets mirroring state
@@ -495,7 +497,7 @@ final class PhoneMirroringWindowController: NSWindowController, NSWindowDelegate
 			PhoneMirroringModel.shared.stopStreaming(notifyRemote: notifyRemote)
 			if let window = self.window, window.isVisible {
 				window.orderOut(nil)
-				print("AirLink Mirroring: Closed mirroring window (notifyRemote: \(notifyRemote)).")
+				print("AirLink Mirroring: Closed and removed mirroring window (notifyRemote: \(notifyRemote)).")
 				fflush(stdout)
 			}
 		}

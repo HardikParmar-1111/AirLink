@@ -1,0 +1,30 @@
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# AirLink Web (Next.js)
+AirLink Web/node_modules/
+AirLink Web/.next/
+AirLink Web/out/
+AirLink Web/.vercel/
+AirLink Web/*.tsbuildinfo
+
+# AirLink Mobile (Android)
+AirLink mobile/.gradle/
+AirLink mobile/.kotlin/
+AirLink mobile/build/
+AirLink mobile/*/build/
+AirLink mobile/local.properties
+AirLink mobile/.idea/
+AirLink mobile/captures/
+AirLink mobile/*.apk
+AirLink mobile/*.aab
+
+# AirLink Mac
+AirLink Mac/build/
+AirLink Mac/DerivedData/
+AirLink Mac/*.xcworkspace/xcuserdata/
+AirLink Mac/*.xcodeproj/xcuserdata/
+AirLink Mac/*.xcuserdata/

@@ -56,8 +56,8 @@ class AirLinkAccessibilityService : AccessibilityService() {
             moveTo(pixelX, pixelY)
         }
 
-        // Set duration to 1 millisecond (minimum permitted by Android) for zero-delay instant tap
-        val stroke = GestureDescription.StrokeDescription(path, 0L, 1L)
+        // 50ms duration ensures Android touch system recognizes the click without cancellation
+        val stroke = GestureDescription.StrokeDescription(path, 0L, 50L)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
 
         return dispatchGesture(gesture, object : GestureResultCallback() {

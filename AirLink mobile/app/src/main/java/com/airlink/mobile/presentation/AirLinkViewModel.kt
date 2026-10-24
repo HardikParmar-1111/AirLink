@@ -115,7 +115,9 @@ class AirLinkViewModel(application: Application) : AndroidViewModel(application)
             if (!ScreenCaptureService.isStreamingFlow.value) {
                 _requestScreenCapturePrompt.tryEmit(Unit)
             } else {
-                socketManager.sendStreamInfo()
+                Log.d(TAG, "Screen mirroring was marked active; restarting fresh capture session")
+                ScreenCaptureService.stop(getApplication())
+                _requestScreenCapturePrompt.tryEmit(Unit)
             }
         }
 
