@@ -42,6 +42,9 @@ export default function Footer() {
           <Link href="#specs" className="hover:text-zinc-900 dark:hover:text-white transition-colors">
             Specs
           </Link>
+          <Link href="#installation" className="hover:text-zinc-900 dark:hover:text-white transition-colors">
+            Installation
+          </Link>
           <a
             href="https://github.com/HardikParmar-1111/AirLink"
             target="_blank"

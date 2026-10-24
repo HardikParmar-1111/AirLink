@@ -7,6 +7,7 @@ import SecuritySection from "@/components/SecuritySection";
 import SpecsTable from "@/components/SpecsTable";
 import FAQSection from "@/components/FAQSection";
 import DownloadSection from "@/components/DownloadSection";
+import InstallationGuide from "@/components/InstallationGuide";
 import Footer from "@/components/Footer";
 
 export default function Home() {
@@ -39,6 +40,9 @@ export default function Home() {
 
         {/* Download Hub */}
         <DownloadSection />
+
+        {/* Installation & Security Guide */}
+        <InstallationGuide />
       </main>
 
       {/* Footer */}
