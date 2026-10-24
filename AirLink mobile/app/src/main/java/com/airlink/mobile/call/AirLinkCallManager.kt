@@ -149,8 +149,8 @@ class AirLinkCallManager(
     /**
      * Step 3: Silently decline the active call and send the automated SMS reply.
      */
-    fun declineAndSendSMS(customMessage: String) {
-        val targetNumber = activeIncomingNumber
+    fun declineAndSendSMS(customMessage: String, explicitNumber: String? = null) {
+        val targetNumber = explicitNumber?.takeIf { it.isNotBlank() && it != "Unknown Caller" } ?: activeIncomingNumber
         Log.d(TAG, "Executing Decline & Text command for target: $targetNumber")
 
         // 1. Silently reject/end the incoming call via TelecomManager

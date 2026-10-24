@@ -494,8 +494,13 @@ class AirLinkWebSocketManager(
                             json.has("text") -> json.getString("text")
                             else -> "I will call back later, please text me."
                         }
-                        Log.d(TAG, "Received decline_and_text command from Mac: '$message'")
-                        callManager.declineAndSendSMS(message)
+                        val explicitNumber = when {
+                            json.has("number") -> json.getString("number")
+                            json.has("phoneNumber") -> json.getString("phoneNumber")
+                            else -> null
+                        }
+                        Log.d(TAG, "Received decline_and_text command from Mac: '$message', number: $explicitNumber")
+                        callManager.declineAndSendSMS(message, explicitNumber)
                     }
                     "touch" -> {
                         val normX = (if (json.has("x")) json.optDouble("x", 0.0) else json.optDouble("normalizedX", 0.0)).toFloat()

@@ -124,10 +124,19 @@ class AirLinkCrypto {
                 return rawText
             }
 
-            val ivBase64 = json.getString("iv")
-            val dataBase64 = json.getString("data")
-            val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
-            val cipherBytes = Base64.decode(dataBase64, Base64.NO_WRAP)
+            val (iv, cipherBytes) = if (json.has("iv") && json.has("data")) {
+                val ivBase64 = json.getString("iv")
+                val dataBase64 = json.getString("data")
+                Pair(Base64.decode(ivBase64, Base64.NO_WRAP), Base64.decode(dataBase64, Base64.NO_WRAP))
+            } else if (json.has("payload")) {
+                val combined = Base64.decode(json.getString("payload"), Base64.NO_WRAP)
+                if (combined.size < 28) return rawText
+                val iv = combined.copyOfRange(0, 12)
+                val cipher = combined.copyOfRange(12, combined.size)
+                Pair(iv, cipher)
+            } else {
+                return rawText
+            }
 
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))

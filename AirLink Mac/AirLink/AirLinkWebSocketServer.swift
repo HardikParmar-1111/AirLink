@@ -795,17 +795,8 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		// Encrypt outgoing JSON payloads with AES-256-GCM if shared key is established
 		let finalJSON: String
 		if let plainData = json.data(using: .utf8),
-		   let encryptedData = AirLinkSecurityManager.shared.encrypt(data: plainData) {
-			let envelope: [String: Any] = [
-				"type": "encrypted",
-				"payload": encryptedData.base64EncodedString()
-			]
-			if let envelopeData = try? JSONSerialization.data(withJSONObject: envelope),
-			   let envelopeStr = String(data: envelopeData, encoding: .utf8) {
-				finalJSON = envelopeStr
-			} else {
-				finalJSON = json
-			}
+		   let (envelopeStr, _) = AirLinkSecurityManager.shared.encryptEnvelope(data: plainData) {
+			finalJSON = envelopeStr
 		} else {
 			finalJSON = json
 		}
@@ -816,6 +807,9 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 
 		queue.async { [weak self] in
 			guard let self = self else { return }
+			let clientCount = self.connections.count
+			print("AirLink WebSocket: Dispatching message to \(clientCount) connected client(s): \(json)")
+			fflush(stdout)
 			for connection in self.connections.values {
 				connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed { [weak self, weak connection] error in
 					if let error = error {
@@ -1143,6 +1137,37 @@ final class AirLinkSecurityManager {
 		keyLock.lock()
 		defer { keyLock.unlock() }
 		self.activeSymmetricKey = nil
+	}
+
+	/// Encrypts plaintext data using AES-256-GCM and formats it for cross-platform Android compatibility
+	func encryptEnvelope(data: Data) -> (jsonString: String, combined: Data)? {
+		keyLock.lock()
+		guard let key = activeSymmetricKey else {
+			keyLock.unlock()
+			return nil
+		}
+		keyLock.unlock()
+
+		do {
+			let sealedBox = try AES.GCM.seal(data, using: key)
+			let ivBase64 = Data(sealedBox.nonce).base64EncodedString()
+			let cipherAndTag = sealedBox.ciphertext + sealedBox.tag
+			let combinedData = sealedBox.combined ?? (Data(sealedBox.nonce) + cipherAndTag)
+			let envelope: [String: Any] = [
+				"type": "encrypted",
+				"iv": ivBase64,
+				"data": cipherAndTag.base64EncodedString(),
+				"payload": combinedData.base64EncodedString()
+			]
+			if let envelopeData = try? JSONSerialization.data(withJSONObject: envelope),
+			   let envelopeStr = String(data: envelopeData, encoding: .utf8) {
+				return (envelopeStr, combinedData)
+			}
+			return nil
+		} catch {
+			print("AirLink Security: Encryption failed: \(error)")
+			return nil
+		}
 	}
 
 	/// Encrypts plaintext data using AES-256-GCM

@@ -235,10 +235,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 		if response.actionIdentifier == "DECLINE_AND_TEXT" {
 			let quickReplyText = "I will call back later, please text me."
 			print("AirLink: User pressed Decline & Text. Dispatching WebSocket command to Android...")
-			let payload: [String: Any] = [
+			var payload: [String: Any] = [
 				"type": "decline_and_text",
 				"message": quickReplyText
 			]
+			if let phoneNumber = response.notification.request.content.userInfo["phoneNumber"] as? String {
+				payload["number"] = phoneNumber
+				payload["phoneNumber"] = phoneNumber
+			}
 			if let data = try? JSONSerialization.data(withJSONObject: payload),
 			   let jsonString = String(data: data, encoding: .utf8) {
 				AirLinkWebSocketServer.shared.sendMessage(json: jsonString)
