@@ -101,9 +101,21 @@ class MainActivity : ComponentActivity() {
     private val callAndSmsPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
+        viewModel.refreshPermissionsState()
         val phoneStateGranted = permissions[android.Manifest.permission.READ_PHONE_STATE] ?: false
         val smsGranted = permissions[android.Manifest.permission.SEND_SMS] ?: false
         Log.d(TAG, "Call & SMS permissions granted: phoneState=$phoneStateGranted, sms=$smsGranted")
+    }
+
+    private fun requestCallPermissions() {
+        callAndSmsPermissionsLauncher.launch(
+            arrayOf(
+                android.Manifest.permission.READ_PHONE_STATE,
+                android.Manifest.permission.READ_CALL_LOG,
+                android.Manifest.permission.ANSWER_PHONE_CALLS,
+                android.Manifest.permission.SEND_SMS
+            )
+        )
     }
 
     /**
@@ -189,9 +201,17 @@ class MainActivity : ComponentActivity() {
             AirLinkTheme {
                 AirLinkScreen(
                     viewModel = viewModel,
-                    onRequestMirroring = ::promptScreenCapture
+                    onRequestMirroring = ::promptScreenCapture,
+                    onRequestCallPermissions = ::requestCallPermissions
                 )
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::viewModel.isInitialized) {
+            viewModel.refreshPermissionsState()
         }
     }
 
@@ -227,30 +247,49 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AirLinkScreen(
     viewModel: AirLinkViewModel,
-    onRequestMirroring: () -> Unit
+    onRequestMirroring: () -> Unit,
+    onRequestCallPermissions: () -> Unit
 ) {
+    val context = LocalContext.current
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val connectedMacName by viewModel.connectedMacName.collectAsStateWithLifecycle()
     val discoveredDevices by viewModel.discoveredDevices.collectAsStateWithLifecycle()
-    val isStreaming by viewModel.isStreaming.collectAsStateWithLifecycle()
-    val batteryState by viewModel.batteryState.collectAsStateWithLifecycle()
+    val isMirroringActive by viewModel.isMirroringActive.collectAsStateWithLifecycle()
+    val isPhoneRinging by viewModel.isPhoneRinging.collectAsStateWithLifecycle()
+    val batteryLevel by viewModel.batteryLevel.collectAsStateWithLifecycle()
+    val isCharging by viewModel.isCharging.collectAsStateWithLifecycle()
+    val clipboardSyncActive by viewModel.clipboardSyncActive.collectAsStateWithLifecycle()
+    val lastClipboardSyncTimestamp by viewModel.lastClipboardSyncTimestamp.collectAsStateWithLifecycle()
+    val callHandlingPermissionsGranted by viewModel.callHandlingPermissionsGranted.collectAsStateWithLifecycle()
+
+    val isTouchInjectionEnabled = AirLinkAccessibilityService.isPermissionGranted(context)
 
     when (connectionState) {
         is ConnectionState.Connected -> {
             com.airlink.mobile.ui.ActiveConnectionScreen(
                 macName = connectedMacName ?: "MacBook",
-                batteryLevel = batteryState?.first ?: 100,
-                isCharging = batteryState?.second ?: false,
-                isStreaming = isStreaming,
+                batteryLevel = batteryLevel,
+                isCharging = isCharging,
+                isMirroringActive = isMirroringActive,
+                clipboardSyncActive = clipboardSyncActive,
+                lastClipboardSyncTimestamp = lastClipboardSyncTimestamp,
+                callHandlingPermissionsGranted = callHandlingPermissionsGranted,
+                isTouchInjectionEnabled = isTouchInjectionEnabled,
+                isPhoneRinging = isPhoneRinging,
                 onStartMirroring = onRequestMirroring,
                 onStopMirroring = viewModel::stopScreenCapture,
+                onStopRinging = viewModel::stopRinging,
+                onGrantCallPermissions = onRequestCallPermissions,
+                onOpenAccessibilitySettings = { AirLinkAccessibilityService.openSettings(context) },
                 onDisconnect = viewModel::onDisconnectClicked
             )
         }
         else -> {
             com.airlink.mobile.ui.ScanningScreen(
                 discoveredDevices = discoveredDevices,
-                onPairClicked = viewModel::connectToDevice
+                onPairClicked = viewModel::connectToDevice,
+                isPhoneRinging = isPhoneRinging,
+                onStopRinging = viewModel::stopRinging
             )
         }
     }

@@ -1,9 +1,12 @@
 package com.airlink.mobile.presentation
 
+import android.Manifest
 import android.app.Application
 import android.content.ClipboardManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airlink.mobile.battery.BatteryMonitor
@@ -62,12 +65,31 @@ class AirLinkViewModel(application: Application) : AndroidViewModel(application)
     val discoveredDevices: StateFlow<List<DiscoveredDevice>> = discoveryManager.discoveredDevices
 
     val isStreaming: StateFlow<Boolean> = ScreenCaptureService.isStreamingFlow
+    val isMirroringActive: StateFlow<Boolean> = ScreenCaptureService.isStreamingFlow
+
     val isRinging: StateFlow<Boolean> = PhoneRingerManager.isRinging
+    val isPhoneRinging: StateFlow<Boolean> = PhoneRingerManager.isRinging
+
+    private val _batteryLevel = MutableStateFlow(100)
+    val batteryLevel: StateFlow<Int> = _batteryLevel.asStateFlow()
+
+    private val _isCharging = MutableStateFlow(false)
+    val isCharging: StateFlow<Boolean> = _isCharging.asStateFlow()
 
     private val _batteryState = MutableStateFlow<Pair<Int, Boolean>?>(null)
     val batteryState: StateFlow<Pair<Int, Boolean>?> = _batteryState.asStateFlow()
 
+    val clipboardSyncActive: StateFlow<Boolean> = MutableStateFlow(true).asStateFlow()
+
+    private val _lastClipboardSyncTimestamp = MutableStateFlow(0L)
+    val lastClipboardSyncTimestamp: StateFlow<Long> = _lastClipboardSyncTimestamp.asStateFlow()
+
+    private val _callHandlingPermissionsGranted = MutableStateFlow(false)
+    val callHandlingPermissionsGranted: StateFlow<Boolean> = _callHandlingPermissionsGranted.asStateFlow()
+
     private val batteryMonitor = BatteryMonitor(application) { level, isCharging ->
+        _batteryLevel.value = level
+        _isCharging.value = isCharging
         _batteryState.value = level to isCharging
         val payload = JSONObject().apply {
             put("type", "battery")
@@ -129,6 +151,9 @@ class AirLinkViewModel(application: Application) : AndroidViewModel(application)
         // Start battery monitoring
         batteryMonitor.start()
 
+        // Check initial permissions state
+        refreshPermissionsState()
+
         // Start mDNS discovery immediately (without auto-connecting)
         discoveryManager.startDiscovery()
     }
@@ -181,6 +206,18 @@ class AirLinkViewModel(application: Application) : AndroidViewModel(application)
         onConnectionLostCallback?.invoke()
     }
 
+    fun markClipboardSynced() {
+        _lastClipboardSyncTimestamp.value = System.currentTimeMillis()
+    }
+
+    fun refreshPermissionsState() {
+        val app = getApplication<Application>()
+        val readPhone = ContextCompat.checkSelfPermission(app, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+        val answerCalls = ContextCompat.checkSelfPermission(app, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED
+        val sendSms = ContextCompat.checkSelfPermission(app, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED
+        _callHandlingPermissionsGranted.value = readPhone && answerCalls && sendSms
+    }
+
     /**
      * Called from the Activity clipboard listener. Builds the JSON payload and
      * writes it to the live OkHttp WebSocket on this calling thread.
@@ -190,6 +227,7 @@ class AirLinkViewModel(application: Application) : AndroidViewModel(application)
         if (text == lastReceivedText) return
         if (clipboardSync.shouldIgnoreLocalChange(text)) return
         clipboardSync.markLocalTextSent(text)
+        markClipboardSynced()
 
         val payload = JSONObject().apply {
             put("type", ClipboardPayload.TYPE_CLIPBOARD)
@@ -224,6 +262,7 @@ class AirLinkViewModel(application: Application) : AndroidViewModel(application)
 
         withContext(Dispatchers.Main.immediate) {
             lastReceivedText = data
+            markClipboardSynced()
             clipboardSync.writeRemoteText(data)
             onRemoteClipboardReceived?.invoke(data)
         }
