@@ -8,21 +8,21 @@
   [![Platforms](https://img.shields.io/badge/Platform-macOS%20%7C%20Android-34C759?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/HardikParmar-1111/AirLink)
   [![Security](https://img.shields.io/badge/Security-AES--256--GCM-FF9500?style=for-the-badge&logo=shield)](https://github.com/HardikParmar-1111/AirLink)
   [![License](https://img.shields.io/badge/License-MIT-5856D6?style=for-the-badge)](LICENSE)
-  [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=githubactions)](https://github.com/HardikParmar-1111/AirLink)
+  [![Web](https://img.shields.io/badge/Website-Live%20on%20GitHub%20Pages-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://hardikparmar-1111.github.io/AirLink/)
 
   <br />
 
-  <!-- Hero Banner Image Placeholder -->
-  <img src="assets/banner.png" alt="AirLink Hero Banner" width="850" style="max-width: 100%; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);" />
+  <!-- Hero Banner Image -->
+  <img src="assets/banner.png" alt="AirLink Hero Banner" width="850" style="max-width: 100%; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.3);" />
 
   <p align="center">
-    <strong>AirLink</strong> seamlessly unifies your Android phone and Mac into a coherent ecosystem. Experience real-time screen streaming, interactive touch injection, cross-platform clipboard synchronization, and live telemetry—all over a local encrypted network.
+    <strong>AirLink</strong> brings true Apple-native Continuity to Android and macOS. Experience real-time screen streaming, interactive touch injection, cross-platform clipboard synchronization, Notch Drop file transfers, and remote incoming call handling with instant SMS Quick Reply—all over your private, encrypted local network.
   </p>
 
   <p align="center">
-    <a href="#-quick-start">Quick Start</a> •
     <a href="#-key-features">Key Features</a> •
-    <a href="#-architecture">Architecture</a> •
+    <a href="#-quick-start">Quick Start</a> •
+    <a href="#-architecture--security">Architecture</a> •
     <a href="#-tech-stack">Tech Stack</a> •
     <a href="#-building-from-source">Building from Source</a> •
     <a href="#-contributing">Contributing</a>
@@ -40,9 +40,11 @@
 - [Quick Start](#-quick-start)
   - [macOS Client](#1-macos-client)
   - [Android Client](#2-android-client)
+  - [Web Showcase](#3-web-showcase--landing-page)
 - [Building from Source](#-building-from-source)
-  - [Android (`.apk`)](#prerequisites-for-android)
-  - [macOS (`AirLink.app`)](#prerequisites-for-macos)
+  - [Android Client (`.apk`)](#prerequisites-for-android)
+  - [macOS Client (`AirLink.app`)](#prerequisites-for-macos)
+  - [Landing Page (`AirLink Web`)](#prerequisites-for-airlink-web)
 - [Tech Stack](#-tech-stack)
 - [Permissions & Privacy](#-permissions--privacy)
 - [Troubleshooting](#-troubleshooting)
@@ -53,7 +55,7 @@
 
 ## 💡 Overview
 
-AirLink bridges the gap between Google's Android and Apple's macOS ecosystem without relying on third-party cloud relays or proprietary subscriptions. Operating entirely over your local Wi-Fi, AirLink provides an Apple-native Continuity experience with hardware-accelerated video rendering, bidirectional clipboard mirroring, and bi-directional peripheral interaction.
+AirLink eliminates the barrier between Google's Android and Apple's macOS ecosystem without relying on cloud relays, third-party subscriptions, or proprietary locks. Operating entirely over your local Wi-Fi subnet with zero telemetry, AirLink provides a unified workstation experience: stream your phone display at native responsiveness, control apps using your Mac trackpad, beam files through the MacBook notch, synchronize clipboards bidirectionally, and decline calls with automated SMS replies right from macOS notifications.
 
 ---
 
@@ -62,32 +64,42 @@ AirLink bridges the gap between Google's Android and Apple's macOS ecosystem wit
 <table>
   <tr>
     <td width="50%">
-      <h3>📱 Seamless Screen Mirroring</h3>
-      <p>Low-latency, high-fps screen projection from Android to macOS. Enjoy smooth visual output with responsive window scaling and native macOS rendering.</p>
+      <h3>📱 Real-Time Screen Mirroring</h3>
+      <p>High-fidelity, low-latency screen streaming from Android to macOS. Features custom binary JPEG frame streaming over WebSockets with responsive window scaling and native macOS rendering.</p>
     </td>
     <td width="50%">
-      <h3>🖱️ Remote Trackpad & Control</h3>
-      <p>Directly interact with your Android device using your Mac's trackpad and mouse. Native tap, swipe, and scroll gestures are translated into Android input events via accessibility integration.</p>
+      <h3>🖱️ Remote Trackpad & Gesture Control</h3>
+      <p>Directly control your Android device using your Mac's trackpad and keyboard. Native tap, swipe, and scroll gestures are translated into Android input events via an Accessibility Service.</p>
     </td>
   </tr>
   <tr>
+    <td width="50%">
+      <h3>📞 Call Quick Reply ("Decline & Text")</h3>
+      <p>Receive native macOS notification banners when your phone rings. Click <strong>Decline & Text</strong> to silently reject the call on Android via <code>TelecomManager</code> and immediately dispatch an automated SMS reply.</p>
+    </td>
     <td width="50%">
       <h3>📋 Universal Clipboard Sync</h3>
-      <p>Copy text, URLs, or code on Android and paste instantly on Mac (or vice-versa). Instant bidirectional synchronization ensures frictionless workflow continuity.</p>
-    </td>
-    <td width="50%">
-      <h3>🔒 Hardened AES-256-GCM Encryption</h3>
-      <p>Zero plaintext on the wire. Every screen frame and telemetry payload is authenticated and encrypted with 256-bit symmetric keys, 12-byte initialization vectors (IV), and 128-bit authentication tags.</p>
+      <p>Copy text, URLs, or code on Android and paste instantly on Mac—or vice versa. Continuous monitoring keeps both system clipboards in lockstep with zero manual steps.</p>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <h3>🔋 Real-Time Device Telemetry</h3>
-      <p>Monitor your phone's battery percentage and charging state directly from the macOS Menu Bar and Notch Drop overlay.</p>
+      <h3>🛸 Notch Drop Zone & Instant File Beaming</h3>
+      <p>Drag any file onto your MacBook's notch or menu bar icon to wirelessly beam it straight to your Android phone's storage with visual haptic feedback.</p>
     </td>
     <td width="50%">
-      <h3>⚡ Resilient WebSocket Layer</h3>
-      <p>Self-healing local network socket with automatic reconnect logic, keepalive heartbeats, and zero disruption during brief network interruptions.</p>
+      <h3>🔒 Hardened AES-256-GCM Cryptography</h3>
+      <p>Zero plaintext on the wire. Screen frames, control gestures, call notifications, and telemetry payloads are signed and encrypted with 256-bit symmetric keys, 12-byte IVs, and 128-bit authentication tags.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>🎨 Modern Jetpack Compose Experience</h3>
+      <p>A completely redesigned Android UI featuring an Apple-inspired radar scanning screen, frosted-glass paired dashboard widgets, and edge-to-edge system insets padding.</p>
+    </td>
+    <td width="50%">
+      <h3>🔋 Real-Time Device Telemetry</h3>
+      <p>Monitor your phone's battery percentage, charging state, and connectivity status directly from the macOS Menu Bar and Notch Drop overlay.</p>
     </td>
   </tr>
 </table>
@@ -96,67 +108,84 @@ AirLink bridges the gap between Google's Android and Apple's macOS ecosystem wit
 
 ## 🛡️ Architecture & Security
 
-AirLink is engineered around a peer-to-peer local network topology:
+AirLink is engineered around an offline-first peer-to-peer local network topology:
 
 ```mermaid
-graph LR
+graph TD
     subgraph Android["📱 Android Device"]
         SC[ScreenCapture Service]
         AS[Accessibility Engine]
         CB_A[Clipboard Manager]
+        CR[Telephony & Call Receiver]
+        SMS[Automated SMS Dispatcher]
         ENC[AES-256-GCM Engine]
     end
 
-    subgraph Transport["🔒 Local Network (mDNS & WebSockets)"]
-        WS["Encrypted WebSocket Channel\n(AES-GCM Authenticated Frames)"]
+    subgraph Transport["🔒 Encrypted Local Network (mDNS & WebSockets :8080)"]
+        WS["Full-Duplex Encrypted Channel\n(12-byte IV + AES-GCM Authenticated Frames)"]
     end
 
-    subgraph macOS["💻 macOS (Menu Bar App)"]
+    subgraph macOS["💻 macOS (Companion App)"]
         DEC[Decryption Engine]
         MV[Phone Mirroring View]
         CB_M[NSPasteboard Sync]
-        UI[Menu Bar & NotchDrop]
+        NOTIF[UNUserNotificationCenter\n(Incoming Call & Quick Reply)]
+        ND[Notch Drop & Menu Bar]
     end
 
-    SC -->|Raw Frames| ENC
-    CB_A <-->|Text Sync| ENC
+    SC -->|Raw Screen Payloads| ENC
+    CB_A <-->|Clipboard Events| ENC
+    CR -->|Call State & Number| ENC
     ENC -->|Ciphertext + Auth Tag| WS
-    WS -->|Payloads| DEC
+
+    WS -->|Encrypted Frames| DEC
     DEC -->|Video Stream| MV
-    DEC <-->|Clipboard Events| CB_M
-    DEC -->|Battery & Status| UI
-    MV -.->|Mouse / Gesture Packets| WS
-    WS -.->|Touch & Scroll Payloads| AS
+    DEC <-->|Clipboard Packets| CB_M
+    DEC -->|Incoming Call Alert| NOTIF
+    DEC -->|Battery & Telemetry| ND
+
+    NOTIF -.->|Decline & Text Command| WS
+    MV -.->|Trackpad Gestures| WS
+    ND -.->|File Transfer Beams| WS
+
+    WS -.->|Remote Commands| ENC
+    ENC -.->|Decline Call Action| CR
+    ENC -.->|Send SMS Payload| SMS
+    ENC -.->|Touch & Scroll Events| AS
 ```
 
-- **Zero Cloud Dependence**: Data never leaves your local Wi-Fi subnet.
-- **Authenticated Encryption**: Uses `AES/GCM/NoPadding` with non-repeating cryptographically secure IVs to protect against eavesdropping and replay attacks.
-- **Fail-Safe Socket Architecture**: Decoupled dispatch queues handle heavy video streaming without choking touch event ingestion or clipboard state changes.
+- **Zero Cloud Relay**: Packets are routed strictly within your local Wi-Fi subnet. No third-party servers ever touch your data.
+- **Cross-Platform Cryptography**: End-to-end authenticated encryption using Java Cryptography Architecture (JCA) on Android and Apple's CryptoKit on macOS.
+- **Decoupled Architecture**: High-frequency video frame transmission operates independently of control queues, preventing UI input lags.
 
 ---
 
 ## 🚀 Quick Start
 
-Get up and running in under two minutes using our pre-compiled release artifacts.
+Get up and running in under two minutes:
 
 ### 1. macOS Client
 
-1. Navigate to the **[Latest Release](https://github.com/HardikParmar-1111/AirLink/releases/latest)** page and download `AirLink-macOS-v1.0.0.zip`.
-2. Extract the archive and drag **AirLink.app** into your `/Applications` directory.
-3. Launch **AirLink**.
-   > **Note on Gatekeeper:** If macOS blocks launch with an *unidentified developer* warning:
+1. Download `AirLink.app` from the **[Latest Release](https://github.com/HardikParmar-1111/AirLink/releases)**.
+2. Move **AirLink.app** to your `/Applications` folder.
+3. Launch **AirLink**. The menu bar icon will appear and listen on local port `8080`.
+   > **Note on Gatekeeper:** If macOS displays an *unidentified developer* warning:
    > - Right-click **AirLink.app** and select **Open**.
-   > - Click **Open** in the confirmation dialog, or enable it under **System Settings** → **Privacy & Security**.
+   > - Confirm by clicking **Open** in the dialog (or allow in **System Settings** → **Privacy & Security**).
 
 ### 2. Android Client
 
-1. Download the `AirLink-Android-v1.0.apk` from the **[Releases](https://github.com/HardikParmar-1111/AirLink/releases/latest)** tab onto your phone.
-2. Install the APK (allow *Install unknown apps* for your browser/file manager if prompted).
-3. Open the **AirLink** app and grant the necessary permissions:
-   - **Screen Recording (MediaProjection)**: Required to stream your display.
-   - **Accessibility Service**: Required to allow remote touch and gestures from your Mac.
-   - **Notification & Battery Access**: Optional for real-time status indicators.
-4. Ensure both your Mac and Android devices are connected to the **same Wi-Fi network**. The app will discover your host and connect automatically.
+1. Download `AirLink-Android-v1.0.apk` from the **[Releases](https://github.com/HardikParmar-1111/AirLink/releases)** page onto your Android device.
+2. Install the APK and grant permissions when requested:
+   - **Screen Recording (MediaProjection)**: Required for screen mirroring.
+   - **Accessibility Service**: Required to synthesize taps, scrolls, and swipes from your Mac trackpad.
+   - **Phone & SMS (Optional for Quick Reply)**: Required to detect incoming calls and send automated SMS replies when declined from Mac.
+3. Open AirLink; your Mac will be automatically detected on the local network. Tap **Pair** to connect.
+
+### 3. Web Showcase & Landing Page
+
+Visit our interactive web landing page hosted on GitHub Pages:
+**[https://hardikparmar-1111.github.io/AirLink/](https://hardikparmar-1111.github.io/AirLink/)**
 
 ---
 
@@ -164,7 +193,7 @@ Get up and running in under two minutes using our pre-compiled release artifacts
 
 ### Prerequisites for Android
 - **Android Studio** Ladybug (2024.2+) or later
-- **JDK 17**
+- **JDK 17 or JDK 21**
 - Android SDK Platform 35 (`minSdk 26`, `targetSdk 35`)
 
 ```bash
@@ -172,10 +201,10 @@ Get up and running in under two minutes using our pre-compiled release artifacts
 git clone https://github.com/HardikParmar-1111/AirLink.git
 cd AirLink/"AirLink mobile"
 
-# Assemble the release build
+# Build debug or release APK
 ./gradlew assembleRelease
 ```
-The compiled APK will be generated under `app/build/outputs/apk/release/`.
+The compiled APK will be located in `app/build/outputs/apk/release/`.
 
 ---
 
@@ -186,7 +215,7 @@ The compiled APK will be generated under `app/build/outputs/apk/release/`.
 ```bash
 cd ../"AirLink Mac"
 
-# Build using xcodebuild or open AirLink.xcodeproj directly in Xcode
+# Build using xcodebuild
 xcodebuild -project AirLink.xcodeproj \
            -scheme AirLink \
            -configuration Release \
@@ -195,32 +224,52 @@ xcodebuild -project AirLink.xcodeproj \
 
 ---
 
+### Prerequisites for AirLink Web
+- **Node.js 18+** & `npm`
+
+```bash
+cd ../"AirLink Web"
+
+# Install dependencies and run locally
+npm install
+npm run dev
+
+# Export static production bundle (for GitHub Pages / docs)
+npm run build
+```
+
+---
+
 ## 💻 Tech Stack
 
 | Domain | Technology / Library | Purpose |
 | :--- | :--- | :--- |
-| **Android UI** | Jetpack Compose & Material 3 | Modern, reactive configuration interface |
-| **Android Core** | Kotlin, Coroutines & Flow | Asynchronous I/O and state orchestration |
-| **Display Capture** | Android `MediaProjectionManager` | Low-overhead screen capture |
-| **Input Injection**| `AccessibilityService` API | Remote cursor, tap, scroll, and drag synthesis |
-| **macOS Native** | Swift 5.9, SwiftUI & AppKit | Menu Bar resident utility and overlay window |
-| **Video Engine** | CoreGraphics & Native Canvas | Hardware-accelerated frame rendering |
-| **Networking** | WebSockets & mDNS / Bonjour | P2P discovery and low-latency duplex streaming |
-| **Security** | Java Cryptography Architecture & CryptoKit | End-to-end AES-256-GCM cryptographic suite |
+| **Android UI** | Jetpack Compose, Material 3 | Modern radar scanner and paired dashboard widgets |
+| **Android Core** | Kotlin, Coroutines, Flow | Asynchronous I/O and reactive state orchestration |
+| **Display Capture** | Android `MediaProjectionManager` | Low-overhead screen capture pipeline |
+| **Telephony & SMS** | `TelephonyCallback`, `TelecomManager`, `SmsManager` | Background call detection and automated SMS quick reply |
+| **Input Injection** | `AccessibilityService` API | Remote cursor, tap, scroll, and drag synthesis |
+| **macOS Native** | Swift 5.9+, SwiftUI, AppKit | Menu Bar utility, floating mirror window, Notch Drop |
+| **Notifications** | `UserNotifications` (UNUserNotificationCenter) | Interactive incoming call alerts with custom action buttons |
+| **Web Landing Page** | Next.js 15, React, Tailwind CSS | Product landing page with floating pill dock |
+| **Networking** | WebSockets & mDNS / Bonjour | P2P local discovery and high-throughput streaming |
+| **Security** | Java JCA & Apple CryptoKit | End-to-end AES-256-GCM symmetric encryption |
 
 ---
 
 ## 🔒 Permissions & Privacy
 
-AirLink is privacy-first. We do not track telemetry, display ads, or communicate with external servers.
+AirLink is privacy-first. We do not track telemetry, collect personal data, or communicate with external servers.
 
 | Platform | Permission | Rationale |
 | :--- | :--- | :--- |
-| **Android** | `MEDIA_PROJECTION` | Encodes screen pixels to stream to your Mac monitor. |
-| **Android** | `ACCESSIBILITY_SERVICE` | Translates Mac trackpad movements and clicks into on-screen gestures. |
-| **Android** | `ACCESS_NETWORK_STATE` & `INTERNET` | Facilitates local socket transport over the shared Wi-Fi network. |
-| **Android** | `BIND_NOTIFICATION_LISTENER_SERVICE` | Forwards incoming alerts to macOS (optional). |
-| **macOS** | Local Network Access | Discovers and receives data packets from the Android client. |
+| **Android** | `MEDIA_PROJECTION` | Captures screen frames to project to your Mac display. |
+| **Android** | `ACCESSIBILITY_SERVICE` | Translates Mac trackpad movements and gestures into on-screen taps and swipes. |
+| **Android** | `READ_PHONE_STATE` | Detects when a phone call is ringing to notify your Mac. |
+| **Android** | `ANSWER_PHONE_CALLS` | Silently declines calls when the Mac user clicks "Decline & Text". |
+| **Android** | `SEND_SMS` | Dispatches the automated Quick Reply text message to the caller. |
+| **Android** | `ACCESS_NETWORK_STATE` & `INTERNET` | Establishes the local WebSocket transport over your shared Wi-Fi. |
+| **macOS** | Local Network & Notifications | Receives data packets from Android and presents interactive call alerts. |
 
 ---
 
@@ -230,22 +279,28 @@ AirLink is privacy-first. We do not track telemetry, display ads, or communicate
 <summary><strong>Devices do not discover each other on the network</strong></summary>
 
 - Confirm that both your Mac and Android phone are on the exact same Wi-Fi subnet (e.g., both on the 5 GHz band).
-- Disable AP/Client Isolation on your Wi-Fi router, as it prevents devices from talking directly to one another.
-- Ensure macOS Firewall or third-party filtering tools (Little Snitch, LuLu) permit inbound connections to AirLink.
+- Disable AP/Client Isolation on your Wi-Fi router, as it prevents local peer-to-peer communication.
+- Ensure macOS Firewall permits incoming connections to AirLink on port `8080`.
+</details>
+
+<details>
+<summary><strong>Call Quick Reply does not trigger an SMS</strong></summary>
+
+- Ensure `SEND_SMS`, `READ_PHONE_STATE`, and `ANSWER_PHONE_CALLS` permissions are granted on Android.
+- If Android battery saver or OEM aggressive task killers are enabled, set AirLink's battery usage to *Unrestricted*.
 </details>
 
 <details>
 <summary><strong>Trackpad clicks do not register on Android</strong></summary>
 
 - Verify that **AirLink Accessibility Service** is enabled in Android **Settings** → **Accessibility** → **Installed Apps**.
-- Battery optimization may kill background services on certain OEMs (Samsung, Xiaomi); set AirLink's battery usage to *Unrestricted*.
 </details>
 
 <details>
 <summary><strong>High latency or dropped frames</strong></summary>
 
 - Connect to a 5 GHz Wi-Fi network rather than 2.4 GHz to minimize interference.
-- Lower the display capture resolution inside the Android app settings if running on budget hardware.
+- Ensure Doze mode or aggressive battery saver is not throttling the background socket.
 </details>
 
 ---
