@@ -76,50 +76,50 @@ export default function ContinuityLab() {
         </p>
 
         {/* Tab Switcher Pills */}
-        <div className="mt-8 inline-flex p-1.5 rounded-full bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/10 backdrop-blur-md">
+        <div className="mt-8 inline-flex max-w-full overflow-x-auto no-scrollbar p-1 sm:p-1.5 rounded-full bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/10 backdrop-blur-md">
           <button
             onClick={() => setActiveTab("mirror")}
             type="button"
-            className={`flex items-center gap-2 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
               activeTab === "mirror"
                 ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm"
                 : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
             }`}
           >
-            <Smartphone className="w-4 h-4" />
-            <span>Screen Mirroring</span>
+            <Smartphone className="w-4 h-4 shrink-0" />
+            <span><span className="hidden sm:inline">Screen </span>Mirroring</span>
           </button>
 
           <button
             onClick={() => setActiveTab("clipboard")}
             type="button"
-            className={`flex items-center gap-2 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
               activeTab === "clipboard"
                 ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm"
                 : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
             }`}
           >
-            <ClipboardCopy className="w-4 h-4" />
-            <span>Universal Clipboard</span>
+            <ClipboardCopy className="w-4 h-4 shrink-0" />
+            <span><span className="hidden sm:inline">Universal </span>Clipboard</span>
           </button>
 
           <button
             onClick={() => setActiveTab("notch")}
             type="button"
-            className={`flex items-center gap-2 px-4 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
               activeTab === "notch"
                 ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm"
                 : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
             }`}
           >
-            <Laptop className="w-4 h-4" />
-            <span>Dynamic Notch Drop</span>
+            <Laptop className="w-4 h-4 shrink-0" />
+            <span><span className="hidden sm:inline">Dynamic </span>Notch Drop</span>
           </button>
         </div>
       </div>
 
       {/* Simulator Display Panel */}
-      <div className="glass-panel rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+      <div className="glass-panel rounded-3xl p-4 sm:p-8 lg:p-10 shadow-2xl relative overflow-hidden">
         {/* Background glow accent */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -z-10" />
 
@@ -385,43 +385,48 @@ export default function ContinuityLab() {
               </div>
 
               {/* Simulated MacBook Display Top with Notch */}
-              <div className="relative max-w-2xl mx-auto h-72 rounded-2xl bg-gradient-to-b from-zinc-900 via-slate-900 to-indigo-950 p-4 border border-zinc-700/80 shadow-2xl flex flex-col justify-between overflow-hidden">
+              <div className="relative max-w-2xl mx-auto h-72 sm:h-80 rounded-2xl bg-gradient-to-b from-zinc-900 via-slate-900 to-indigo-950 p-3 sm:p-4 border border-zinc-700/80 shadow-2xl flex flex-col justify-between overflow-hidden">
                 {/* Menu bar */}
-                <div className="flex items-center justify-between text-xs text-zinc-300 px-3 py-1 border-b border-white/5">
-                  <div className="flex items-center gap-4 font-semibold">
-                    <span></span>
-                    <span className="font-normal text-white">AirLink</span>
-                    <span className="font-normal text-zinc-400">File</span>
-                    <span className="font-normal text-zinc-400">View</span>
+                <div className="flex items-center justify-between text-xs text-zinc-300 px-2 sm:px-3 py-1.5 border-b border-white/5 select-none relative z-10">
+                  <div className="flex items-center gap-2 sm:gap-4 font-semibold shrink-0">
+                    <span className="text-sm"></span>
+                    <span className="font-medium text-white">AirLink</span>
+                    <span className="font-normal text-zinc-400 hidden md:inline">File</span>
+                    <span className="font-normal text-zinc-400 hidden md:inline">View</span>
                   </div>
-                  <div className="flex items-center gap-3 text-[11px]">
-                    <span className="text-emerald-400 flex items-center gap-1 font-mono">
+                  <div className="flex items-center gap-2 sm:gap-3 text-[11px] shrink-0 font-mono">
+                    <span className="text-emerald-400 hidden sm:flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       Pixel 8 Pro • Connected
                     </span>
-                    <span>Fri Oct 24 1:30 PM</span>
+                    <span className="text-emerald-400 sm:hidden flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    </span>
+                    <span className="text-zinc-400 whitespace-nowrap">
+                      <span className="hidden sm:inline">Fri Oct 24 </span>1:30 PM
+                    </span>
                   </div>
                 </div>
 
                 {/* The Notch Element */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 flex flex-col items-center z-30">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 flex flex-col items-center z-30 w-full max-w-full px-2 pointer-events-auto">
                   <motion.div
                     animate={{
-                      width: notchExpanded ? 340 : 160,
-                      height: notchExpanded ? 110 : 32,
+                      width: notchExpanded ? "min(340px, 94%)" : "156px",
+                      height: notchExpanded ? 112 : 32,
                     }}
-                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 26 }}
                     onClick={() => setNotchExpanded(!notchExpanded)}
-                    className="bg-black text-white rounded-b-3xl px-4 py-2 cursor-pointer shadow-2xl border-x border-b border-white/10 flex flex-col justify-between"
+                    className="bg-black text-white rounded-b-2xl sm:rounded-b-3xl px-3 sm:px-4 py-2 cursor-pointer shadow-2xl border-x border-b border-white/10 flex flex-col justify-between mx-auto select-none"
                   >
                     {/* Compact state */}
                     <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
-                        <BatteryCharging className="w-4 h-4" />
+                      <div className="flex items-center gap-1 text-[11px] sm:text-xs text-emerald-400 font-mono">
+                        <BatteryCharging className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         <span>{batteryLevel}%</span>
                       </div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-zinc-800 border border-zinc-700" />
-                      <div className="text-[11px] text-zinc-400 font-mono">14 ms</div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-zinc-800 border border-zinc-700 mx-2 shrink-0" />
+                      <div className="text-[10px] sm:text-[11px] text-zinc-400 font-mono">14 ms</div>
                     </div>
 
                     {/* Expanded details */}
@@ -429,11 +434,11 @@ export default function ContinuityLab() {
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="pt-2 border-t border-white/10 flex items-center justify-between text-xs"
+                        className="pt-2 border-t border-white/10 flex items-center justify-between text-xs gap-2"
                       >
-                        <div className="text-left space-y-0.5">
-                          <div className="font-semibold text-white">Google Pixel 8 Pro</div>
-                          <div className="text-[11px] text-zinc-400">
+                        <div className="text-left space-y-0.5 min-w-0">
+                          <div className="font-semibold text-white truncate text-xs sm:text-sm">Google Pixel 8 Pro</div>
+                          <div className="text-[10px] sm:text-[11px] text-zinc-400 truncate">
                             {isCharging ? "Fast Charging (27W)" : "Discharging on Battery"}
                           </div>
                         </div>
@@ -443,19 +448,19 @@ export default function ContinuityLab() {
                             setIsCharging(!isCharging);
                             setBatteryLevel((prev) => (prev > 95 ? 45 : prev + 10));
                           }}
-                          className="px-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 text-[11px] font-medium transition-colors"
+                          className="px-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 text-[10px] sm:text-[11px] font-medium transition-colors shrink-0 cursor-pointer active:scale-95"
                         >
                           Simulate Chg
                         </button>
                       </motion.div>
                     )}
                   </motion.div>
-                  <span className="text-[10px] text-zinc-400 mt-2">
+                  <span className="text-[10px] text-zinc-400 mt-2 select-none">
                     Click notch to {notchExpanded ? "collapse" : "expand"}
                   </span>
                 </div>
 
-                <div className="text-center text-xs text-zinc-400 pb-2">
+                <div className="text-center text-xs text-zinc-400 pb-2 relative z-10 px-2">
                   Live macOS desktop overlay with zero CPU overhead.
                 </div>
               </div>

@@ -30,19 +30,21 @@ export default function Navbar() {
         {/* Ghost Button: Design */}
         <Link
           href="#features"
+          title="Design Features"
           className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium text-zinc-700 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
         >
           <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2]" />
-          <span>Design</span>
+          <span className="hidden sm:inline">Design</span>
         </Link>
 
         {/* Ghost Button: Security */}
         <Link
           href="#security"
+          title="Security Protocols"
           className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium text-zinc-700 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
         >
           <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2]" />
-          <span>Security</span>
+          <span className="hidden sm:inline">Security</span>
         </Link>
 
         {/* Theme Toggle */}
