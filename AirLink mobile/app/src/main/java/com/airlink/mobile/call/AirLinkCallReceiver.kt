@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.PowerManager
 import android.telephony.TelephonyManager
 import android.util.Log
+import com.airlink.mobile.network.AirLinkWebSocketManager
 
 /**
  * BroadcastReceiver for TelephonyManager.ACTION_PHONE_STATE.
@@ -40,7 +41,17 @@ class AirLinkCallReceiver : BroadcastReceiver() {
                 )
                 wakeLock?.acquire(15_000L) // 15 seconds
 
-                AirLinkCallManager.sharedInstance?.onIncomingCallRinging(number)
+                if (AirLinkCallManager.sharedInstance != null) {
+                    AirLinkCallManager.sharedInstance?.onIncomingCallRinging(number)
+                } else {
+                    Log.d("AirLink", "Sending incoming_call JSON to Mac (via broadcast fallback)")
+                    val payload = org.json.JSONObject().apply {
+                        put("type", "incoming_call")
+                        put("number", number)
+                        put("timestamp", System.currentTimeMillis())
+                    }.toString()
+                    AirLinkWebSocketManager.sendPayload(payload)
+                }
             }
             TelephonyManager.EXTRA_STATE_IDLE -> {
                 Log.d(TAG, "AirLinkCallReceiver: Call is IDLE")

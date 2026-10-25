@@ -222,24 +222,47 @@ class AirLinkWebSocketManager(
 
     init {
         instance = this
+        try {
+            callManager.startListening()
+        } catch (t: Throwable) {
+            Log.w(TAG, "Could not initialize call listening in init: ${t.message}")
+        }
         AirLinkNotificationListener.listenerCallback = { appName, title, text, packageName, key, canReply ->
-            if (_connectionState.value is ConnectionState.Connected) {
-                try {
-                    val payload = JSONObject().apply {
-                        put("type", "notification")
-                        put("app", appName)
-                        put("title", title)
-                        put("text", text)
-                        put("package", packageName)
-                        put("key", key)
-                        put("canReply", canReply)
-                    }.toString()
-                    val sent = send(payload)
-                    Log.d(TAG, if (sent) "Forwarded notification to Mac: $appName - $title (key=$key, canReply=$canReply)" else "Notification send skipped")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error forwarding notification: ${e.message}")
-                }
-            }
+            sendNotificationPayload(appName, title, text, packageName, key, canReply)
+        }
+    }
+
+    fun sendNotificationPayload(
+        appName: String,
+        title: String,
+        text: String,
+        packageName: String,
+        key: String,
+        canReply: Boolean
+    ): Boolean {
+        if (_connectionState.value !is ConnectionState.Connected) {
+            Log.d(TAG, "Notification forward skipped: not connected to Mac")
+            return false
+        }
+        return try {
+            val payload = JSONObject().apply {
+                put("type", "notification")
+                put("app", appName)
+                put("appName", appName)
+                put("title", title)
+                put("text", text)
+                put("body", text)
+                put("package", packageName)
+                put("packageName", packageName)
+                put("key", key)
+                put("canReply", canReply)
+            }.toString()
+            val sent = send(payload)
+            Log.d(TAG, if (sent) "Forwarded notification to Mac: $appName - $title (key=$key, canReply=$canReply)" else "Notification send skipped (buffer full/closed)")
+            sent
+        } catch (t: Throwable) {
+            Log.w(TAG, "Error formatting/sending notification payload: ${t.message}")
+            false
         }
     }
 
@@ -423,6 +446,11 @@ class AirLinkWebSocketManager(
                 }.toString()
                 webSocket.send(pairingRequest)
                 Log.d(TAG, "Sent pairing request: $pairingRequest")
+                try {
+                    callManager.startListening()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Could not start call listening on open: ${t.message}")
+                }
             } catch (e: IOException) {
                 Log.e(TAG, "IOException during onOpen send: ${e.message}", e)
                 handleDisconnectionOnFailure(e)
@@ -647,12 +675,16 @@ class AirLinkWebSocketManager(
                     }
                 }
             } catch (t: Throwable) {
-                Log.d(TAG, "Message parsing handled non-fatal exception: ${t.message}")
+                Log.e(TAG, "Message parsing handled non-fatal exception: ${t.message}", t)
             }
 
-            val emitted = _incomingMessages.tryEmit(plainText)
-            if (!emitted) {
-                scope.launch { _incomingMessages.emit(plainText) }
+            try {
+                val emitted = _incomingMessages.tryEmit(plainText)
+                if (!emitted) {
+                    scope.launch { _incomingMessages.emit(plainText) }
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "Error emitting incoming message: ${t.message}")
             }
         }
 
@@ -724,6 +756,21 @@ class AirLinkWebSocketManager(
                 put("type", "stop_ring")
             }.toString()
             return instance?.send(legacy) ?: false
+        }
+
+        fun broadcastNotification(
+            appName: String,
+            title: String,
+            text: String,
+            packageName: String,
+            key: String,
+            canReply: Boolean
+        ): Boolean {
+            return instance?.sendNotificationPayload(appName, title, text, packageName, key, canReply) ?: false
+        }
+
+        fun sendPayload(payload: String): Boolean {
+            return instance?.send(payload) ?: false
         }
     }
 }
