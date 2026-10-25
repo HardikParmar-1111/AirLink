@@ -29,6 +29,7 @@
 		C0C01111000000070000C001 /* AirLinkWebSocketServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C01111000000080000C001 /* AirLinkWebSocketServer.swift */; };
 		C0C01111000000090000C001 /* AirLinkNotchDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C011110000000A0000C001 /* AirLinkNotchDrop.swift */; };
 		C0C011110000000B0000C001 /* PhoneMirroringView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C011110000000C0000C001 /* PhoneMirroringView.swift */; };
+		C0C011110000000D0000C001 /* IncomingNotificationAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C011110000000E0000C001 /* IncomingNotificationAlert.swift */; };
 		69DA9A1429E0BF5200A442DA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 69DA9A1329E0BF5200A442DA /* Assets.xcassets */; };
 		69DCF48A2AB70E8C00CBE2CC /* wire_format.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DA9A2929E18CB500A442DA /* wire_format.pb.swift */; };
 		69DCF48B2AB70E8C00CBE2CC /* ukey.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DA9A2829E18CB500A442DA /* ukey.pb.swift */; };
@@ -150,6 +151,7 @@
 		C0C01111000000080000C001 /* AirLinkWebSocketServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirLinkWebSocketServer.swift; sourceTree = "<group>"; };
 		C0C011110000000A0000C001 /* AirLinkNotchDrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirLinkNotchDrop.swift; sourceTree = "<group>"; };
 		C0C011110000000C0000C001 /* PhoneMirroringView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneMirroringView.swift; sourceTree = "<group>"; };
+		C0C011110000000E0000C001 /* IncomingNotificationAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingNotificationAlert.swift; sourceTree = "<group>"; };
 		69DA9A1329E0BF5200A442DA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		69DA9A1829E0BF5200A442DA /* AirLink.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AirLink.entitlements; sourceTree = "<group>"; };
 		69DA9A1E29E0C0B300A442DA /* AirLinkConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirLinkConnectionManager.swift; sourceTree = "<group>"; };
@@ -251,6 +253,7 @@
 				C0C01111000000080000C001 /* AirLinkWebSocketServer.swift */,
 				C0C011110000000A0000C001 /* AirLinkNotchDrop.swift */,
 				C0C011110000000C0000C001 /* PhoneMirroringView.swift */,
+				C0C011110000000E0000C001 /* IncomingNotificationAlert.swift */,
 				69DA9A1329E0BF5200A442DA /* Assets.xcassets */,
 				697DDF122E44AAFB00B4749C /* Localizable.xcstrings */,
 				698DFB0129E362140064F247 /* AirLinkNotificationCenterHackery.h */,
@@ -478,6 +481,7 @@
 				C0C01111000000070000C001 /* AirLinkWebSocketServer.swift in Sources */,
 				C0C01111000000090000C001 /* AirLinkNotchDrop.swift in Sources */,
 				C0C011110000000B0000C001 /* PhoneMirroringView.swift in Sources */,
+				C0C011110000000D0000C001 /* IncomingNotificationAlert.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

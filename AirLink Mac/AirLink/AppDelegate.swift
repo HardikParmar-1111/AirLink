@@ -43,11 +43,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 		)
 		let incomingCallCategory = UNNotificationCategory(
 			identifier: "INCOMING_CALL",
-			actions: [declineAndTextAction],
+			actions: [
+				UNNotificationAction(identifier: "CALL_TEMPLATE_CALL_BACK", title: AirLinkReplyTemplates.callBackLater, options: []),
+				UNNotificationAction(identifier: "CALL_TEMPLATE_TEXT_ME", title: AirLinkReplyTemplates.pleaseTextMe, options: []),
+				UNNotificationAction(identifier: "CALL_TEMPLATE_MEETING", title: AirLinkReplyTemplates.inAMeeting, options: []),
+				declineAndTextAction
+			],
 			intentIdentifiers: [],
 			options: [.customDismissAction]
 		)
 
+		let templateCallBack = UNNotificationAction(
+			identifier: "REPLY_TEMPLATE_CALL_BACK",
+			title: AirLinkReplyTemplates.callBackLater,
+			options: []
+		)
+		let templateTextMe = UNNotificationAction(
+			identifier: "REPLY_TEMPLATE_TEXT_ME",
+			title: AirLinkReplyTemplates.pleaseTextMe,
+			options: []
+		)
+		let templateMeeting = UNNotificationAction(
+			identifier: "REPLY_TEMPLATE_MEETING",
+			title: AirLinkReplyTemplates.inAMeeting,
+			options: []
+		)
 		let quickReplyAction = UNTextInputNotificationAction(
 			identifier: "REPLY_ACTION",
 			title: "Reply",
@@ -57,7 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 		)
 		let replyCategory = UNNotificationCategory(
 			identifier: "REPLY_NOTIFICATION",
-			actions: [quickReplyAction],
+			actions: [templateCallBack, templateTextMe, templateMeeting, quickReplyAction],
 			intentIdentifiers: [],
 			options: []
 		)
@@ -263,21 +283,55 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 			}
 		}
 
+		let templateMessage: String? = {
+			switch response.actionIdentifier {
+			case "REPLY_TEMPLATE_CALL_BACK": return AirLinkReplyTemplates.callBackLater
+			case "REPLY_TEMPLATE_TEXT_ME": return AirLinkReplyTemplates.pleaseTextMe
+			case "REPLY_TEMPLATE_MEETING": return AirLinkReplyTemplates.inAMeeting
+			default: return nil
+			}
+		}()
+		if let templateMessage {
+			let userInfo = response.notification.request.content.userInfo
+			let isCall = response.notification.request.content.categoryIdentifier == "INCOMING_CALL"
+			if isCall, let phoneNumber = userInfo["phoneNumber"] as? String, !phoneNumber.isEmpty {
+				print("AirLink: User tapped call template '\(templateMessage)' for number '\(phoneNumber)'")
+				fflush(stdout)
+				AirLinkWebSocketServer.shared.sendRejectCallWithSms(number: phoneNumber, message: templateMessage)
+			} else {
+				let notificationKey = userInfo["key"] as? String ?? ""
+				if !notificationKey.isEmpty {
+					print("AirLink: User tapped template reply '\(templateMessage)' for key '\(notificationKey)'")
+					fflush(stdout)
+					AirLinkWebSocketServer.shared.sendNotificationReply(key: notificationKey, message: templateMessage)
+				}
+			}
+		}
+
+		let callTemplateMessage: String? = {
+			switch response.actionIdentifier {
+			case "CALL_TEMPLATE_CALL_BACK": return AirLinkReplyTemplates.callBackLater
+			case "CALL_TEMPLATE_TEXT_ME": return AirLinkReplyTemplates.pleaseTextMe
+			case "CALL_TEMPLATE_MEETING": return AirLinkReplyTemplates.inAMeeting
+			default: return nil
+			}
+		}()
+		if let callTemplateMessage {
+			let phoneNumber = response.notification.request.content.userInfo["phoneNumber"] as? String ?? ""
+			if !phoneNumber.isEmpty {
+				print("AirLink: User tapped call template '\(callTemplateMessage)' for number '\(phoneNumber)'")
+				fflush(stdout)
+				AirLinkWebSocketServer.shared.sendRejectCallWithSms(number: phoneNumber, message: callTemplateMessage)
+			}
+		}
+
 		if let textResponse = response as? UNTextInputNotificationResponse {
 			let replyText = textResponse.userText.trimmingCharacters(in: .whitespacesAndNewlines)
 			let notificationKey = response.notification.request.content.userInfo["key"] as? String ?? ""
 			if !notificationKey.isEmpty && !replyText.isEmpty {
 				print("AirLink: User typed quick reply '\(replyText)' for notification key '\(notificationKey)'. Dispatching to Android...")
 				fflush(stdout)
-				let payload: [String: Any] = [
-					"action": "REPLY",
-					"key": notificationKey,
-					"message": replyText
-				]
-				if let data = try? JSONSerialization.data(withJSONObject: payload),
-				   let jsonString = String(data: data, encoding: .utf8) {
-					AirLinkWebSocketServer.shared.sendMessage(json: jsonString)
-				}
+				AirLinkWebSocketServer.shared.sendNotificationReply(key: notificationKey, message: replyText)
 			}
 		}
 

@@ -454,12 +454,52 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		showSystemNotification(title: rawTitle, subtitle: subTitle, body: rawBody, key: notifKey, canReply: canReply)
 
 		DispatchQueue.main.async {
+			if canReply, let notifKey, !notifKey.isEmpty {
+				IncomingNotificationAlertController.shared.present(
+					appName: appName ?? subTitle ?? "",
+					title: rawTitle,
+					body: rawBody,
+					key: notifKey
+				)
+			}
 			AirLinkNotchDropManager.shared.triggerReceivedFeedback(
 				title: rawTitle,
 				subtitle: rawBody.isEmpty ? (subTitle ?? "Notification") : rawBody
 			)
 			AppDelegate.shared?.flashMenuBarIcon()
 		}
+	}
+
+	func sendRejectCallWithSms(number: String, message: String) {
+		let trimmedNumber = number.trimmingCharacters(in: .whitespacesAndNewlines)
+		let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmedNumber.isEmpty, !trimmedMessage.isEmpty else { return }
+		let payload: [String: Any] = [
+			"action": "REJECT_WITH_SMS",
+			"number": trimmedNumber,
+			"message": trimmedMessage
+		]
+		guard let data = try? JSONSerialization.data(withJSONObject: payload),
+		      let jsonString = String(data: data, encoding: .utf8) else { return }
+		print("AirLink: Sending REJECT_WITH_SMS to '\(trimmedNumber)': '\(trimmedMessage)'")
+		fflush(stdout)
+		sendMessage(json: jsonString)
+	}
+
+	func sendNotificationReply(key: String, message: String) {
+		let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+		let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmedKey.isEmpty, !trimmedMessage.isEmpty else { return }
+		let payload: [String: Any] = [
+			"action": "REPLY",
+			"key": trimmedKey,
+			"message": trimmedMessage
+		]
+		guard let data = try? JSONSerialization.data(withJSONObject: payload),
+		      let jsonString = String(data: data, encoding: .utf8) else { return }
+		print("AirLink: Sending REPLY for key '\(trimmedKey)': '\(trimmedMessage)'")
+		fflush(stdout)
+		sendMessage(json: jsonString)
 	}
 
 	func showSystemNotification(title: String, subtitle: String? = nil, body: String, key: String? = nil, canReply: Bool = false) {
@@ -491,13 +531,44 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		}
 	}
 
+// MARK: - Forgiving Incoming Call Payload Decoding
+struct IncomingCallPayload: Codable {
+	var type: String?
+	var number: String?
+	var phoneNumber: String?
+	var phone_number: String?
+	var caller: String?
+	var callerNumber: String?
+	var name: String?
+	var callerName: String?
+	var caller_name: String?
+	var timestamp: Double?
+
+	var resolvedNumber: String {
+		number ?? phoneNumber ?? phone_number ?? caller ?? callerNumber ?? "Unknown Caller"
+	}
+
+	var resolvedCallerName: String {
+		name ?? callerName ?? caller_name ?? resolvedNumber
+	}
+}
+
 	private func routeIncomingMessage(jsonString: String, from connection: NWConnection) {
 		let trimmed = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+		print("[DEBUG] WebSocket text message received (\(trimmed.utf8.count) bytes): \(trimmed.prefix(120))")
+		fflush(stdout)
+
 		guard let data = trimmed.data(using: .utf8),
 		      let json = (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) as? [String: Any] else {
-			print("AirLink Router: invalid JSON structure (not a dictionary): \(trimmed)")
+			print("[DEBUG] AirLink Router: JSON parsing FAILED (not a valid JSON dictionary): \(trimmed)")
+			fflush(stdout)
 			return
 		}
+
+		let rawType = (json["type"] as? String) ?? (json["action"] as? String) ?? ""
+		let type = rawType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+		print("[DEBUG] AirLink Router: JSON parsing SUCCEEDED. Action/Type='\(type)'")
+		fflush(stdout)
 
 		// Dynamic IP capture from incoming payload or active connection
 		let payloadIP = (json["ip"] as? String)
@@ -518,20 +589,45 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 			parseAndApplyBattery(from: json)
 		}
 
-		let rawType = (json["type"] as? String) ?? (json["action"] as? String) ?? ""
-		let type = rawType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-		// Decrypt AES-256-GCM envelope if received as {"type": "encrypted", "payload": "<base64>"}
+		// Decrypt AES-256-GCM envelope if received as {"type": "encrypted", ...}
 		if type == "encrypted" {
-			let rawPayload = (json["payload"] as? String) ?? (json["data"] as? String)
-			if let rawPayload,
-			   let cipherData = Data(base64Encoded: rawPayload),
-			   let decryptedData = AirLinkSecurityManager.shared.decrypt(combinedData: cipherData),
-			   let decryptedString = String(data: decryptedData, encoding: .utf8) {
+			print("[DEBUG] AirLink Security: Attempting decryption of encrypted envelope...")
+			fflush(stdout)
+
+			var decryptedString: String? = nil
+
+			// Format A: {"type": "encrypted", "iv": "<base64_12b>", "data": "<base64_cipher_tag>"}
+			if let ivBase64 = json["iv"] as? String,
+			   let dataBase64 = (json["data"] as? String) ?? (json["payload"] as? String),
+			   let ivData = Data(base64Encoded: ivBase64),
+			   let cipherData = Data(base64Encoded: dataBase64) {
+				print("[DEBUG] AirLink Security: Found separate IV (\(ivData.count) bytes) and ciphertext (\(cipherData.count) bytes)")
+				fflush(stdout)
+				let combined = ivData + cipherData
+				if let decryptedData = AirLinkSecurityManager.shared.decrypt(combinedData: combined) {
+					decryptedString = String(data: decryptedData, encoding: .utf8)
+				}
+			}
+
+			// Format B: {"type": "encrypted", "payload": "<combined_base64>"}
+			if decryptedString == nil,
+			   let rawPayload = (json["payload"] as? String) ?? (json["data"] as? String),
+			   let cipherData = Data(base64Encoded: rawPayload) {
+				print("[DEBUG] AirLink Security: Attempting combined payload decryption (\(cipherData.count) bytes)")
+				fflush(stdout)
+				if let decryptedData = AirLinkSecurityManager.shared.decrypt(combinedData: cipherData) {
+					decryptedString = String(data: decryptedData, encoding: .utf8)
+				}
+			}
+
+			if let decryptedString {
+				print("[DEBUG] AirLink Security: Decryption SUCCEEDED. Decrypted payload: \(decryptedString)")
+				fflush(stdout)
 				routeIncomingMessage(jsonString: decryptedString, from: connection)
 				return
 			} else {
-				print("AirLink Security: Failed to decrypt incoming JSON envelope")
+				print("[DEBUG] AirLink Security: Decryption FAILED for envelope: \(trimmed)")
+				fflush(stdout)
 				return
 			}
 		}
@@ -660,23 +756,61 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 			}
 
 		case "incoming_call", "call_incoming", "call":
-			// Strict logging requirement to verify network delivery
-			print("AirLink: Received incoming_call JSON: \(trimmed)")
+			print("[DEBUG] AirLink: Processing incoming call message: \(trimmed)")
 			fflush(stdout)
 
-			let rawNumber = (json["number"] as? String)
-				?? (json["phoneNumber"] as? String)
-				?? (json["phone_number"] as? String)
-				?? (json["caller"] as? String)
-				?? "Unknown Caller"
-			let callerName = (json["name"] as? String) ?? (json["callerName"] as? String) ?? rawNumber
+			// 1. Forgiving JSON decoding via JSONDecoder
+			var rawNumber = "Unknown Caller"
+			var callerName = "Unknown Caller"
+
+			if let callData = trimmed.data(using: .utf8),
+			   let decoded = try? JSONDecoder().decode(IncomingCallPayload.self, from: callData) {
+				rawNumber = decoded.resolvedNumber
+				callerName = decoded.resolvedCallerName
+				print("[DEBUG] AirLink: JSONDecoder successfully decoded call payload -> name='\(callerName)', number='\(rawNumber)'")
+				fflush(stdout)
+			} else {
+				rawNumber = (json["number"] as? String)
+					?? (json["phoneNumber"] as? String)
+					?? (json["phone_number"] as? String)
+					?? (json["caller"] as? String)
+					?? (json["callerNumber"] as? String)
+					?? "Unknown Caller"
+				callerName = (json["name"] as? String)
+					?? (json["callerName"] as? String)
+					?? (json["caller_name"] as? String)
+					?? rawNumber
+				print("[DEBUG] AirLink: Fallback dictionary decoded call payload -> name='\(callerName)', number='\(rawNumber)'")
+				fflush(stdout)
+			}
+
 			let deviceName = self.connectedDeviceName ?? "Android Phone"
 
-			// Strict requirement: all UI and notification triggers must be on main thread
+			// 2. Main Thread Enforcement: All UI, alerts, and SwiftUI state updates must run on main thread
 			DispatchQueue.main.async {
-				print("AirLink: Posting incoming call notification on main thread for '\(callerName)' (\(rawNumber))")
+				print("[DEBUG] AirLink: Running incoming call alert presentation on main thread for '\(callerName)' (\(rawNumber))")
 				fflush(stdout)
 
+				// Update SwiftUI Model
+				AirLinkModel.shared.connectedDeviceName = deviceName
+
+				// Present Floating Alert View Controller
+				IncomingNotificationAlertController.shared.presentIncomingCall(
+					callerName: callerName,
+					number: rawNumber,
+					deviceName: deviceName
+				)
+
+				// Present Notch feedback
+				AirLinkNotchDropManager.shared.triggerReceivedFeedback(
+					title: "Incoming Call",
+					subtitle: callerName != rawNumber ? "\(callerName) (\(rawNumber))" : rawNumber
+				)
+
+				// Flash menu bar icon
+				AppDelegate.shared?.flashMenuBarIcon()
+
+				// System notification post
 				let content = UNMutableNotificationContent()
 				content.title = "Incoming Call"
 				content.subtitle = deviceName
@@ -692,18 +826,12 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 				)
 				UNUserNotificationCenter.current().add(request) { error in
 					if let error {
-						print("AirLink: Failed to post call notification: \(error)")
+						print("[DEBUG] AirLink: Failed to post call notification: \(error)")
 					} else {
-						print("AirLink: Successfully scheduled incoming call notification!")
+						print("[DEBUG] AirLink: Successfully scheduled incoming call notification!")
 					}
 					fflush(stdout)
 				}
-
-				AirLinkNotchDropManager.shared.triggerReceivedFeedback(
-					title: "Incoming Call",
-					subtitle: callerName
-				)
-				AppDelegate.shared?.flashMenuBarIcon()
 			}
 
 		case "notification", "android_notification", "remote_notification":
@@ -1224,6 +1352,8 @@ final class AirLinkSecurityManager {
 		keyLock.lock()
 		guard let key = activeSymmetricKey else {
 			keyLock.unlock()
+			print("[DEBUG] AirLinkSecurityManager: Decryption skipped — no active symmetric key")
+			fflush(stdout)
 			return nil
 		}
 		keyLock.unlock()
@@ -1236,13 +1366,21 @@ final class AirLinkSecurityManager {
 		}
 
 		// A valid AES-GCM sealed box must have at least 28 bytes (12 bytes nonce + 16 bytes tag)
-		guard payload.count >= 28 else { return nil }
+		guard payload.count >= 28 else {
+			print("[DEBUG] AirLinkSecurityManager: Decryption failed — payload too short (\(payload.count) bytes < 28 bytes minimum)")
+			fflush(stdout)
+			return nil
+		}
 
 		do {
 			let sealedBox = try AES.GCM.SealedBox(combined: payload)
 			let decrypted = try AES.GCM.open(sealedBox, using: key)
+			print("[DEBUG] AirLinkSecurityManager: AES.GCM open succeeded (\(decrypted.count) decrypted bytes)")
+			fflush(stdout)
 			return decrypted
 		} catch {
+			print("[DEBUG] AirLinkSecurityManager: AES.GCM.open error: \(error.localizedDescription)")
+			fflush(stdout)
 			return nil
 		}
 	}

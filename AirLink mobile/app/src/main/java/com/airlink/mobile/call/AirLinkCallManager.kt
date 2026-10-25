@@ -99,10 +99,22 @@ class AirLinkCallManager(
         }
     }
 
+    @Volatile
+    private var lastSentRingingNumber: String? = null
+    @Volatile
+    private var lastSentRingingTime: Long = 0L
+
     /**
      * Triggered immediately when ringing is detected by either TelephonyCallback or AirLinkCallReceiver.
      */
     fun onIncomingCallRinging(number: String) {
+        val now = System.currentTimeMillis()
+        if (number == lastSentRingingNumber && (now - lastSentRingingTime) < 3000L) {
+            Log.d(TAG, "AirLinkCallManager: Debouncing duplicate ringing push for '$number'")
+            return
+        }
+        lastSentRingingNumber = number
+        lastSentRingingTime = now
         activeIncomingNumber = number
 
         // 1. Strict logging requirement
@@ -140,6 +152,8 @@ class AirLinkCallManager(
     fun onCallIdle() {
         Log.d(TAG, "Call ended or dismissed (CALL_STATE_IDLE)")
         activeIncomingNumber = null
+        lastSentRingingNumber = null
+        lastSentRingingTime = 0L
     }
 
     fun onCallAnswered() {
