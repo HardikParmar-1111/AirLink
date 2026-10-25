@@ -48,7 +48,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 			options: [.customDismissAction]
 		)
 
-		nc.setNotificationCategories([incomingTransfersCategory, errorsCategory, incomingCallCategory])
+		let quickReplyAction = UNTextInputNotificationAction(
+			identifier: "REPLY_ACTION",
+			title: "Reply",
+			options: [],
+			textInputButtonTitle: "Send",
+			textInputPlaceholder: "Type a reply..."
+		)
+		let replyCategory = UNNotificationCategory(
+			identifier: "REPLY_NOTIFICATION",
+			actions: [quickReplyAction],
+			intentIdentifiers: [],
+			options: []
+		)
+
+		nc.setNotificationCategories([incomingTransfersCategory, errorsCategory, incomingCallCategory, replyCategory])
 		AirLinkConnectionManager.shared.mainAppDelegate = self
 		
 		DispatchQueue.global(qos: .userInitiated).async {
@@ -246,6 +260,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 			if let data = try? JSONSerialization.data(withJSONObject: payload),
 			   let jsonString = String(data: data, encoding: .utf8) {
 				AirLinkWebSocketServer.shared.sendMessage(json: jsonString)
+			}
+		}
+
+		if let textResponse = response as? UNTextInputNotificationResponse {
+			let replyText = textResponse.userText.trimmingCharacters(in: .whitespacesAndNewlines)
+			let notificationKey = response.notification.request.content.userInfo["key"] as? String ?? ""
+			if !notificationKey.isEmpty && !replyText.isEmpty {
+				print("AirLink: User typed quick reply '\(replyText)' for notification key '\(notificationKey)'. Dispatching to Android...")
+				fflush(stdout)
+				let payload: [String: Any] = [
+					"action": "REPLY",
+					"key": notificationKey,
+					"message": replyText
+				]
+				if let data = try? JSONSerialization.data(withJSONObject: payload),
+				   let jsonString = String(data: data, encoding: .utf8) {
+					AirLinkWebSocketServer.shared.sendMessage(json: jsonString)
+				}
 			}
 		}
 

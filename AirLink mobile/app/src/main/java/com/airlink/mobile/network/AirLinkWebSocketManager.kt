@@ -222,7 +222,7 @@ class AirLinkWebSocketManager(
 
     init {
         instance = this
-        AirLinkNotificationListener.listenerCallback = { appName, title, text, _ ->
+        AirLinkNotificationListener.listenerCallback = { appName, title, text, packageName, key, canReply ->
             if (_connectionState.value is ConnectionState.Connected) {
                 try {
                     val payload = JSONObject().apply {
@@ -230,9 +230,12 @@ class AirLinkWebSocketManager(
                         put("app", appName)
                         put("title", title)
                         put("text", text)
+                        put("package", packageName)
+                        put("key", key)
+                        put("canReply", canReply)
                     }.toString()
                     val sent = send(payload)
-                    Log.d(TAG, if (sent) "Forwarded notification to Mac: $appName - $title" else "Notification send skipped")
+                    Log.d(TAG, if (sent) "Forwarded notification to Mac: $appName - $title (key=$key, canReply=$canReply)" else "Notification send skipped")
                 } catch (e: Exception) {
                     Log.w(TAG, "Error forwarding notification: ${e.message}")
                 }
@@ -440,6 +443,34 @@ class AirLinkWebSocketManager(
             try {
                 val json = JSONObject(plainText)
                 val type = json.optString("type")
+                val action = json.optString("action")
+
+                // RemoteInput quick reply trigger: {"action": "REPLY", "key": "...", "message": "..."}
+                if (action.equals("REPLY", ignoreCase = true) ||
+                    type.equals("reply", ignoreCase = true) ||
+                    type.equals("notification_reply", ignoreCase = true)) {
+                    val key = when {
+                        json.has("key") -> json.getString("key")
+                        json.has("notificationKey") -> json.getString("notificationKey")
+                        json.has("id") -> json.getString("id")
+                        else -> ""
+                    }
+                    val message = when {
+                        json.has("message") -> json.getString("message")
+                        json.has("text") -> json.getString("text")
+                        json.has("reply") -> json.getString("reply")
+                        else -> ""
+                    }
+                    Log.d(TAG, "Received quick reply command from Mac: key='$key', message='$message'")
+                    if (key.isNotEmpty() && message.isNotEmpty()) {
+                        val success = AirLinkNotificationListener.sendReply(key, message, context)
+                        Log.d(TAG, "sendReply result for key='$key': $success")
+                    } else {
+                        Log.w(TAG, "Cannot execute sendReply: missing key or message in payload: $plainText")
+                    }
+                    return
+                }
+
                 when (type) {
                     "pairing_accepted" -> {
                         Log.d(TAG, "Pairing accepted by Mac, establishing AES-256-GCM symmetric key")

@@ -444,7 +444,14 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		print("AirLink Notification: Incoming '\(rawTitle)' (\(subTitle ?? "")) - '\(rawBody)'")
 		fflush(stdout)
 
-		showSystemNotification(title: rawTitle, subtitle: subTitle, body: rawBody)
+		let notifKey = (nested["key"] as? String)
+			?? (json["key"] as? String)
+
+		let canReply = (nested["canReply"] as? Bool)
+			?? (json["canReply"] as? Bool)
+			?? (notifKey != nil && !notifKey!.isEmpty)
+
+		showSystemNotification(title: rawTitle, subtitle: subTitle, body: rawBody, key: notifKey, canReply: canReply)
 
 		DispatchQueue.main.async {
 			AirLinkNotchDropManager.shared.triggerReceivedFeedback(
@@ -455,7 +462,7 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		}
 	}
 
-	func showSystemNotification(title: String, subtitle: String? = nil, body: String) {
+	func showSystemNotification(title: String, subtitle: String? = nil, body: String, key: String? = nil, canReply: Bool = false) {
 		let content = UNMutableNotificationContent()
 		content.title = title.isEmpty ? (self.connectedDeviceName ?? "Phone Notification") : title
 		if let subtitle, !subtitle.isEmpty {
@@ -464,7 +471,14 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		content.body = body
 		content.sound = .default
 
-		let id = "android_notif_\(UUID().uuidString)"
+		if let key, !key.isEmpty {
+			content.userInfo["key"] = key
+			if canReply {
+				content.categoryIdentifier = "REPLY_NOTIFICATION"
+			}
+		}
+
+		let id = (key != nil && !key!.isEmpty) ? "android_notif_\(key!)" : "android_notif_\(UUID().uuidString)"
 		let request = UNNotificationRequest(identifier: id, content: content, trigger: nil)
 
 		UNUserNotificationCenter.current().add(request) { error in
