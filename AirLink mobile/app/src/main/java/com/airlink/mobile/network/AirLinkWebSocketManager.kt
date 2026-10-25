@@ -10,6 +10,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.telecom.TelecomManager
+import android.telephony.SmsManager
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
@@ -227,8 +229,8 @@ class AirLinkWebSocketManager(
         } catch (t: Throwable) {
             Log.w(TAG, "Could not initialize call listening in init: ${t.message}")
         }
-        AirLinkNotificationListener.listenerCallback = { appName, title, text, packageName ->
-            sendNotificationPayload(appName, title, text, packageName)
+        AirLinkNotificationListener.listenerCallback = { appName, title, text, packageName, key ->
+            sendNotificationPayload(appName, title, text, packageName, key)
         }
     }
 
@@ -236,7 +238,8 @@ class AirLinkWebSocketManager(
         appName: String,
         title: String,
         text: String,
-        packageName: String
+        packageName: String,
+        key: String
     ): Boolean {
         if (_connectionState.value !is ConnectionState.Connected) {
             Log.d(TAG, "Notification forward skipped: not connected to Mac")
@@ -249,6 +252,7 @@ class AirLinkWebSocketManager(
                 put("title", title)
                 put("text", text)
                 put("package", packageName)
+                put("key", key)
             }.toString()
             val sent = send(payload)
             Log.d(TAG, if (sent) "Forwarded notification to Mac: $appName - $title" else "Notification send skipped (buffer full/closed)")
@@ -256,6 +260,36 @@ class AirLinkWebSocketManager(
         } catch (t: Throwable) {
             Log.w(TAG, "Error formatting/sending notification payload: ${t.message}")
             false
+        }
+    }
+
+    fun rejectCallWithSms(context: Context, phoneNumber: String, message: String) {
+        try {
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                @Suppress("DEPRECATION")
+                if (telecomManager.endCall()) {
+                    Log.d(TAG, "rejectCallWithSms: call ended via TelecomManager")
+                }
+            }
+
+            val targetNumber = phoneNumber.takeIf { it.isNotBlank() && it != "Unknown Caller" }
+                ?: callManager.activeIncomingNumber
+            if (targetNumber.isNullOrBlank() || targetNumber == "Unknown Caller") {
+                Log.w(TAG, "rejectCallWithSms: no valid phone number to SMS")
+                return
+            }
+
+            val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                context.getSystemService(SmsManager::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                SmsManager.getDefault()
+            }
+            smsManager.sendTextMessage(targetNumber, null, message, null, null)
+            Log.d(TAG, "rejectCallWithSms: SMS sent to $targetNumber")
+        } catch (t: Throwable) {
+            Log.e(TAG, "rejectCallWithSms failed: ${t.message}", t)
         }
     }
 
@@ -466,6 +500,23 @@ class AirLinkWebSocketManager(
                 val type = json.optString("type")
                 val action = json.optString("action")
 
+                if (action.equals("REPLY", ignoreCase = true) || type.equals("REPLY", ignoreCase = true)) {
+                    val notificationKey = json.optString("key")
+                    val replyMessage = json.optString("message")
+                    if (notificationKey.isNotEmpty() && replyMessage.isNotEmpty()) {
+                        Log.d(TAG, "Received REPLY command from Mac for key=$notificationKey")
+                        AirLinkNotificationListener.executeReply(notificationKey, replyMessage)
+                    }
+                }
+
+                if (action.equals("REJECT_WITH_SMS", ignoreCase = true) || type.equals("REJECT_WITH_SMS", ignoreCase = true)) {
+                    val number = json.optString("number").ifEmpty { json.optString("phoneNumber") }
+                    val rejectMessage = json.optString("message")
+                    if (rejectMessage.isNotEmpty()) {
+                        Log.d(TAG, "Received REJECT_WITH_SMS command from Mac for number=$number")
+                        rejectCallWithSms(context, number, rejectMessage)
+                    }
+                }
 
                 when (type) {
                     "pairing_accepted" -> {
@@ -730,9 +781,10 @@ class AirLinkWebSocketManager(
             appName: String,
             title: String,
             text: String,
-            packageName: String
+            packageName: String,
+            key: String
         ): Boolean {
-            return instance?.sendNotificationPayload(appName, title, text, packageName) ?: false
+            return instance?.sendNotificationPayload(appName, title, text, packageName, key) ?: false
         }
 
         fun sendPayload(payload: String): Boolean {

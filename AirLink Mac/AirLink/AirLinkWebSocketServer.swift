@@ -411,8 +411,11 @@ final class AirLinkWebSocketServer: NSObject, NetServiceDelegate {
 		let appName = (nested["appName"] as? String)
 			?? (nested["app_name"] as? String)
 			?? (nested["app"] as? String)
+			?? (nested["package"] as? String)
 			?? (json["appName"] as? String)
 			?? (json["app_name"] as? String)
+			?? (json["app"] as? String)
+			?? (json["package"] as? String)
 
 		let rawTitle = (nested["title"] as? String)
 			?? (nested["header"] as? String)
@@ -834,7 +837,7 @@ struct IncomingCallPayload: Codable {
 				}
 			}
 
-		case "notification", "android_notification", "remote_notification":
+		case "notification", "incoming_notification", "android_notification", "remote_notification":
 			handleIncomingNotification(from: json)
 
 		case "battery", "battery_status", "battery_info":
