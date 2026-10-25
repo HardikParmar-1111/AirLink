@@ -227,8 +227,8 @@ class AirLinkWebSocketManager(
         } catch (t: Throwable) {
             Log.w(TAG, "Could not initialize call listening in init: ${t.message}")
         }
-        AirLinkNotificationListener.listenerCallback = { appName, title, text, packageName, key, canReply ->
-            sendNotificationPayload(appName, title, text, packageName, key, canReply)
+        AirLinkNotificationListener.listenerCallback = { appName, title, text, packageName ->
+            sendNotificationPayload(appName, title, text, packageName)
         }
     }
 
@@ -236,9 +236,7 @@ class AirLinkWebSocketManager(
         appName: String,
         title: String,
         text: String,
-        packageName: String,
-        key: String,
-        canReply: Boolean
+        packageName: String
     ): Boolean {
         if (_connectionState.value !is ConnectionState.Connected) {
             Log.d(TAG, "Notification forward skipped: not connected to Mac")
@@ -248,17 +246,12 @@ class AirLinkWebSocketManager(
             val payload = JSONObject().apply {
                 put("type", "notification")
                 put("app", appName)
-                put("appName", appName)
                 put("title", title)
                 put("text", text)
-                put("body", text)
                 put("package", packageName)
-                put("packageName", packageName)
-                put("key", key)
-                put("canReply", canReply)
             }.toString()
             val sent = send(payload)
-            Log.d(TAG, if (sent) "Forwarded notification to Mac: $appName - $title (key=$key, canReply=$canReply)" else "Notification send skipped (buffer full/closed)")
+            Log.d(TAG, if (sent) "Forwarded notification to Mac: $appName - $title" else "Notification send skipped (buffer full/closed)")
             sent
         } catch (t: Throwable) {
             Log.w(TAG, "Error formatting/sending notification payload: ${t.message}")
@@ -473,31 +466,6 @@ class AirLinkWebSocketManager(
                 val type = json.optString("type")
                 val action = json.optString("action")
 
-                // RemoteInput quick reply trigger: {"action": "REPLY", "key": "...", "message": "..."}
-                if (action.equals("REPLY", ignoreCase = true) ||
-                    type.equals("reply", ignoreCase = true) ||
-                    type.equals("notification_reply", ignoreCase = true)) {
-                    val key = when {
-                        json.has("key") -> json.getString("key")
-                        json.has("notificationKey") -> json.getString("notificationKey")
-                        json.has("id") -> json.getString("id")
-                        else -> ""
-                    }
-                    val message = when {
-                        json.has("message") -> json.getString("message")
-                        json.has("text") -> json.getString("text")
-                        json.has("reply") -> json.getString("reply")
-                        else -> ""
-                    }
-                    Log.d(TAG, "Received quick reply command from Mac: key='$key', message='$message'")
-                    if (key.isNotEmpty() && message.isNotEmpty()) {
-                        val success = AirLinkNotificationListener.sendReply(key, message, context)
-                        Log.d(TAG, "sendReply result for key='$key': $success")
-                    } else {
-                        Log.w(TAG, "Cannot execute sendReply: missing key or message in payload: $plainText")
-                    }
-                    return
-                }
 
                 when (type) {
                     "pairing_accepted" -> {
@@ -762,11 +730,9 @@ class AirLinkWebSocketManager(
             appName: String,
             title: String,
             text: String,
-            packageName: String,
-            key: String,
-            canReply: Boolean
+            packageName: String
         ): Boolean {
-            return instance?.sendNotificationPayload(appName, title, text, packageName, key, canReply) ?: false
+            return instance?.sendNotificationPayload(appName, title, text, packageName) ?: false
         }
 
         fun sendPayload(payload: String): Boolean {
